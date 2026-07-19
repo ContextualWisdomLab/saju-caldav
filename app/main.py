@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import secrets
 import sqlite3
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -71,8 +72,19 @@ class CalendarCreate(BaseModel):
 
 
 class DateRange(BaseModel):
-    start_date: date
-    end_date: date
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+def _now(zone: ZoneInfo) -> datetime:
+    return datetime.now(zone)
+
+
+def _resolve_date_range(requested: DateRange, timezone: str) -> tuple[date, date]:
+    zone = ZoneInfo(timezone)
+    start = requested.start_date or _now(zone).date()
+    end = requested.end_date or start + timedelta(days=365)
+    return start, end
 
 
 def _pillar_json(pillar: Pillar) -> dict[str, str]:
@@ -133,11 +145,12 @@ def _windows(
 ) -> tuple[dict[str, object], list[MatchingWindow]]:
     calendar, profile, rule, natal = _calendar_context(store, calendar_id)
     try:
+        start_date, end_date = _resolve_date_range(requested, str(profile["timezone"]))
         windows = generate_windows(
             rule,
             natal,
-            requested.start_date,
-            requested.end_date,
+            start_date,
+            end_date,
             str(profile["timezone"]),
             str(profile["time_mode"]),
             float(profile["longitude"]) if profile["longitude"] is not None else None,

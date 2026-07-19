@@ -131,8 +131,8 @@ function renderCalendars() {
           <p class="calendar-rule">${escapeHtml(rule)}</p>
         </div>
         <div class="calendar-actions">
-          <button class="button secondary" type="button" data-action="preview">90일 미리보기</button>
-          <button class="button primary" type="button" data-action="sync">18개월 동기화</button>
+          <button class="button secondary" type="button" data-action="preview">오늘부터 1년 미리보기</button>
+          <button class="button primary" type="button" data-action="sync">오늘부터 1년 동기화</button>
           <button class="button danger" type="button" data-action="delete">삭제</button>
         </div>
       </article>`;
@@ -158,14 +158,6 @@ function updateValueSelect(fieldSelector, valueSelector, preferred) {
   $(valueSelector).innerHTML = values
     .map((value) => `<option value="${value}"${value === preferred ? " selected" : ""}>${escapeHtml(optionLabel(field, value))}</option>`)
     .join("");
-}
-
-function dateRange(months) {
-  const start = new Date();
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + months);
-  const iso = (value) => value.toISOString().slice(0, 10);
-  return { start_date: iso(start), end_date: iso(end) };
 }
 
 async function refresh() {
@@ -270,10 +262,9 @@ $("#calendar-list").addEventListener("click", async (event) => {
       notify(`‘${calendar.name}’ 캘린더를 삭제했습니다.`);
       return;
     }
-    const months = button.dataset.action === "preview" ? 3 : 18;
     const result = await api(`/api/calendars/${calendarId}/${button.dataset.action}`, {
       method: "POST",
-      body: JSON.stringify(dateRange(months)),
+      body: JSON.stringify({}),
     });
     if (button.dataset.action === "preview") {
       card.querySelector(".preview")?.remove();
@@ -284,7 +275,7 @@ $("#calendar-list").addEventListener("click", async (event) => {
         .join("");
       preview.innerHTML = `<strong>${result.count}개 시간을 찾았습니다.</strong><ol>${items}</ol>`;
       card.append(preview);
-      notify(`90일 범위에서 ${result.count}개 시간을 찾았습니다.`);
+      notify(`오늘부터 1년 범위에서 ${result.count}개 시간을 찾았습니다.`);
     } else {
       await refresh();
       notify(`${result.event_count}개 이벤트를 CalDAV에 동기화했습니다.`);

@@ -1,7 +1,10 @@
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.caldav import SyncResult
 from app.main import create_app
 from app.store import Store
@@ -173,6 +176,32 @@ def test_lunar_profile_keeps_original_input_and_normalizes_birth_time(tmp_path: 
     assert profile["birth_time"] == "08:30:00"
     assert profile["is_leap_month"] == 0
     assert profile["birth_local"] == "2024-02-10T08:30:00"
+
+
+def test_omitted_range_starts_on_current_profile_date(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client, publisher = _client(tmp_path)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    seoul_now = datetime(2026, 7, 19, 0, 30, tzinfo=ZoneInfo("Asia/Seoul"))
+    monkeypatch.setattr(main_module, "_now", lambda zone: seoul_now.astimezone(zone))
+
+    preview = client.post(
+        f"/api/calendars/{calendar['id']}/preview", auth=_auth(), json={}
+    )
+    assert preview.status_code == 200, preview.text
+    assert all(
+        datetime.fromisoformat(event["start"]).date() >= seoul_now.date()
+        for event in preview.json()["events"]
+    )
+
+    synced = client.post(
+        f"/api/calendars/{calendar['id']}/sync", auth=_auth(), json={}
+    )
+    assert synced.status_code == 200, synced.text
+    assert publisher.calls
+    assert all(window.start.date() >= seoul_now.date() for window in publisher.calls[0]["windows"])
 
 
 def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:
