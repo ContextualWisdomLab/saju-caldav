@@ -2,14 +2,15 @@
 
 ## Product intent
 
-Saju CalDAV turns a person's birth date and time into a Four Pillars chart,
-then lets an operator build calendar rules from stem, branch, and Five Phase
-fields. Each saved rule becomes an independently subscribable CalDAV calendar.
+Saju CalDAV turns a person's solar or Korean lunar birth date and local time
+into a Four Pillars chart, then lets an operator build calendar rules from
+stem, branch, and Five Phase fields. Each saved rule becomes an independently
+subscribable CalDAV calendar whose events are real Gregorian date-time windows
+from the current day onward.
 
-The first acceptance example is a woman born on 1990-06-15 at 08:30 local
-time. With the default `Asia/Seoul` civil-time convention, the chart is
-`庚午 / 壬午 / 辛亥 / 壬辰`; therefore the day branch is `亥` (Water) and the
-hour stem is `壬` (Water).
+Personally identifying acceptance values stay in a local or secret-backed
+regression fixture. Public documentation, demo data, Figma, logs, and calendar
+events do not repeat the fixture's birth timestamp, gender, or exact chart.
 
 This is a calendrical and cultural-reference product. It does not claim that
 fortune-telling predictions are scientifically validated and it must not be
@@ -30,6 +31,11 @@ high-impact decisions.
   *산업진흥연구* 8(2), 2023,
   <https://doi.org/10.21186/IPR.2023.8.2.119>. It records the Korean debate
   around civil time, longitude-based solar time, and the Zi-hour boundary.
+- 박한얼·민병희·안영숙, “한국 음력의 운용과 계산법 연구,”
+  *천문학논총* 32(3), 2017, pp. 407–420,
+  <https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART002294846>.
+  It documents Korean lunisolar operation, solar-term and new-moon boundaries,
+  leap-month exceptions, and uncertainty near midnight.
 - RFC 4791, “Calendaring Extensions to WebDAV (CalDAV),”
   <https://www.rfc-editor.org/rfc/rfc4791>.
 - RFC 5545, “Internet Calendaring and Scheduling Core Object Specification,”
@@ -43,20 +49,28 @@ choices must remain explicitly separated in documentation and code comments.
 ### Included
 
 1. One password-protected operator can manage multiple birth profiles.
-2. A profile accepts name, Gregorian birth date/time, gender, IANA timezone,
-   and optional longitude-based true-solar-time correction.
-3. The result shows year, month, day, and hour pillars plus stem/branch Five
-   Phase labels.
-4. An operator can create multiple calendars per profile.
-5. A calendar rule supports `all` or `any` logic over equality predicates for
+2. A profile accepts name, solar or Korean lunar date, birth time, leap-month
+   status when applicable, and an IANA timezone. A city can supply the timezone;
+   latitude is never requested.
+3. Longitude-based true-solar-time correction is an advanced opt-in. The normal
+   form does not request coordinates, and a selected city can supply longitude.
+4. The result leads with plain Korean labels and explanations. Chinese
+   characters are secondary expert notation.
+5. An operator can create multiple calendars per profile.
+6. A calendar rule supports `all` or `any` logic over equality predicates for
    day/hour stem, branch, and element fields.
-6. A predicate value can be a literal (`壬`, `亥`, `水`) or a reference to the
-   selected profile's natal chart (`natal.day.branch`).
-7. The service previews matches for a requested date range.
-8. The service materializes stable RFC 5545 VEVENT resources and publishes
+7. A predicate value can be a literal or a reference to the selected profile's
+   natal chart. The UI describes both choices in Korean rather than exposing
+   raw symbols as the primary vocabulary.
+8. Preview and sync default to the profile timezone's current local date and a
+   bounded future horizon; explicit date ranges remain available.
+9. The service materializes stable RFC 5545 VEVENT resources and publishes
    them to Radicale over CalDAV.
-9. The web UI displays the CalDAV collection URL and connection instructions.
-10. Docker Compose runs the web service and Radicale with persistent volumes.
+10. The event title is the operator's neutral calendar name. Exact birth data,
+    chart symbols, rule values, and custom `X-SAJU-*` properties are omitted
+    from calendar resources by default.
+11. The web UI displays the CalDAV collection URL and connection instructions.
+12. Docker Compose runs the web service and Radicale with persistent volumes.
 
 ### Deliberately excluded
 
@@ -80,6 +94,25 @@ as two contiguous one-hour calendar segments (`00:00–01:00` and
 `23:00–01:00` interval. This prevents a single VEVENT from silently spanning
 two different day pillars. The convention is documented, deterministic, and
 testable.
+
+## Calendar input normalization
+
+Three approaches were considered:
+
+1. Treat a lunar-looking date as if it were Gregorian. This is rejected because
+   invalid Gregorian-shaped dates and leap months cannot be represented safely.
+2. Let the Four Pillars dependency interpret a Chinese lunar date directly.
+   This is rejected because Korean and Chinese lunar dates can differ near
+   astronomical and timezone boundaries.
+3. Preserve the entered calendar system and components, convert Korean lunar
+   input to a Gregorian local date with a KASI-standard converter, then reuse
+   the existing solar-term-aware chart calculation. This is the selected path.
+
+The profile stores the original calendar system, year, month, day, time, and
+leap-month flag together with the normalized Gregorian local timestamp. A
+round-trip display can therefore explain what the user entered without
+reconstructing it from the normalized value. Invalid or impossible leap-month
+dates are rejected before chart calculation.
 
 ## Architecture
 
@@ -118,30 +151,31 @@ the public internet.
 {
   "id": "UUID",
   "name": "샘플",
-  "birth_local": "1990-06-15T08:30:00",
-  "gender": "female",
+  "birth_calendar": "lunar",
+  "birth_year": 2000,
+  "birth_month": 1,
+  "birth_day": 1,
+  "birth_time": "08:30:00",
+  "is_leap_month": false,
+  "normalized_birth_local": "2000-02-05T08:30:00",
+  "gender": "unspecified",
   "timezone": "Asia/Seoul",
   "time_mode": "civil",
-  "longitude": null,
-  "chart": {
-    "year": {"stem": "庚", "branch": "午", "element": "金"},
-    "month": {"stem": "壬", "branch": "午", "element": "水"},
-    "day": {"stem": "辛", "branch": "亥", "element": "水"},
-    "hour": {"stem": "壬", "branch": "辰", "element": "水"}
-  }
+  "longitude": null
 }
 ```
 
-Each pillar exposes both `stem_element` and `branch_element`; the abbreviated
-`element` above refers to the branch element for day/hour matching displays.
+The authenticated response also includes the calculated chart. Each pillar
+exposes machine values plus `korean_label`, `korean_description`, and optional
+expert notation; public examples do not reproduce the private regression chart.
 
 ### Calendar definition
 
 ```json
 {
   "profile_id": "UUID",
-  "name": "내 亥日의 壬時",
-  "slug": "my-hai-ren-hours",
+  "name": "나의 물결 시간",
+  "slug": "my-water-hours",
   "logic": "all",
   "predicates": [
     {"field": "day.branch", "source": "natal", "value": "day.branch"},
@@ -179,8 +213,10 @@ calendar grid. It avoids mystical stock imagery and generic dashboard chrome.
 
 The primary journey is visible without route changes:
 
-1. Add a person and immediately see the Four Pillars.
-2. Create a named rule using human-readable field/value rows.
+1. Add a person with solar/lunar and normal/leap-month controls, then see a
+   plain-Korean chart explanation with optional expert notation.
+2. Create a neutrally named rule using human-readable field/value rows such as
+   “태어난 날의 띠와 같은 날” and “임수 시간”.
 3. Preview the next matches as dated time cards.
 4. Sync and copy the CalDAV connection details.
 
@@ -197,6 +233,11 @@ WCAG AA contrast, and responsive behavior are required.
 - CORS is not enabled; state-changing endpoints accept JSON only.
 - Logs exclude birth timestamps, chart bodies, passwords, and authorization
   headers.
+- Public docs, Figma, sample scripts, and normal CI exclude the private
+  acceptance fixture. An opt-in private regression command reads its input and
+  expected values from environment variables.
+- `SUMMARY` contains only the user-chosen neutral calendar name;
+  `DESCRIPTION` contains a generic Korean notice; `CLASS:PRIVATE` remains set.
 - Public CI uses synthetic data only.
 - SQLite and Radicale data live in ignored persistent volumes.
 
@@ -204,19 +245,19 @@ WCAG AA contrast, and responsive behavior are required.
 
 Completion requires all of the following current-state evidence:
 
-1. Unit test proves `1990-06-15 08:30 Asia/Seoul female` yields `辛亥` day,
-   `亥`/Water day branch, and `壬辰` hour with `壬`/Water stem.
-2. Rule test proves natal day branch plus literal hour stem generates the
+1. A local or secret-backed regression verifies the requested private birth
+   fixture without committing its values. Public unit tests use unrelated
+   synthetic solar, lunar, leap-month, solar-term, and midnight cases.
+2. Rule tests prove natal day branch plus literal hour stem generates the
    expected matching windows and rejects unknown fields.
 3. API integration test creates a profile, calendar, and preview.
 4. CalDAV integration test creates a Radicale collection, uploads events,
    and reads them back with `PROPFIND`/`REPORT` or an independent client.
-5. Browser smoke test completes the primary journey at desktop and mobile
-   widths with no console errors.
+5. Browser smoke test completes the solar and lunar journeys at desktop and
+   mobile widths, verifies Korean-first labels, and finds no console errors.
 6. Docker Compose starts from `.env.example`-shaped secrets and persists data.
 7. CodeGraph indexes the final repository and can trace the profile request to
    chart calculation and calendar sync to CalDAV publishing.
 8. GitHub Actions run unit/integration checks on the pushed repository.
 9. If SSH connectivity is available, the same stack runs on
    `seongho@192.168.68.3` and a LAN CalDAV round trip succeeds.
-
