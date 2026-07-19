@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f2ede3">
+    <title>時曆 · Saju CalDAV</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+    <header class="masthead">
+      <a class="wordmark" href="#main" aria-label="시력 홈">
+        <span class="seal" aria-hidden="true">時曆</span>
+        <span>Saju CalDAV</span>
+      </a>
+      <p class="edition">개인 운영자용 · Asia/Seoul</p>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">Four Pillars → CalDAV</p>
+        <h1 id="hero-title">사주 명식을<br>시간 캘린더로</h1>
+        <div class="hero-copy">
+          <p>
+            출생 시각에서 년·월·일·시주를 계산하고, 원하는 간지 조건이 다시
+            만나는 시간을 개인 CalDAV 캘린더로 발행합니다.
+          </p>
+          <p class="disclaimer">
+            문화·역법 참고 도구입니다. 운세의 과학적 타당성이나 인과관계를
+            주장하지 않습니다.
+          </p>
+        </div>
+      </section>
+
+      <div class="rule" aria-hidden="true"></div>
+
+      <section class="workspace" aria-label="캘린더 제작 흐름">
+        <article class="panel profile-panel">
+          <header class="panel-heading">
+            <p class="step">01 · 명식</p>
+            <h2>출생 프로필</h2>
+            <p>양력의 현지 시각을 입력해 네 기둥을 계산합니다.</p>
+          </header>
+
+          <form id="profile-form" class="form-grid">
+            <label class="field wide">
+              <span>프로필 이름</span>
+              <input name="name" value="1990년 샘플" maxlength="80" required>
+            </label>
+            <label class="field wide">
+              <span>양력 생년월일과 탄생 시</span>
+              <input name="birth_local" type="datetime-local" value="1990-06-15T08:30" required>
+            </label>
+            <label class="field">
+              <span>성별</span>
+              <select name="gender">
+                <option value="female" selected>여성</option>
+                <option value="male">남성</option>
+                <option value="unspecified">미지정</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>시간대</span>
+              <input name="timezone" value="Asia/Seoul" required>
+            </label>
+            <label class="field wide">
+              <span>시간 기준</span>
+              <select name="time_mode" id="time-mode">
+                <option value="civil" selected>표준시 · 기본</option>
+                <option value="true_solar">진태양시 · 경도 보정</option>
+              </select>
+            </label>
+            <label class="field wide" id="longitude-field" hidden>
+              <span>출생지 경도</span>
+              <input name="longitude" type="number" min="-180" max="180" step="0.001" value="126.978">
+            </label>
+            <p class="field-note wide">
+              성별은 기록용이며, 이번 버전의 사주 네 기둥 계산에는 영향을 주지 않습니다.
+            </p>
+            <button class="button primary wide" type="submit">명식 계산하고 저장</button>
+          </form>
+
+          <section id="chart-result" class="chart" aria-live="polite" hidden>
+            <div class="chart-heading">
+              <p>계산된 명식</p>
+              <strong id="chart-profile-name"></strong>
+            </div>
+            <div class="pillars" id="pillars"></div>
+            <p id="acceptance-note" class="acceptance-note"></p>
+          </section>
+        </article>
+
+        <article class="panel calendar-panel">
+          <header class="panel-heading">
+            <p class="step">02 · 규칙</p>
+            <h2>맞춤 캘린더</h2>
+            <p>현재 시간의 값과 출생 명식 또는 직접 지정한 값을 비교합니다.</p>
+          </header>
+
+          <form id="calendar-form" class="form-grid">
+            <label class="field wide">
+              <span>기준 프로필</span>
+              <select name="profile_id" id="profile-select" required>
+                <option value="">먼저 출생 프로필을 저장하세요</option>
+              </select>
+            </label>
+            <label class="field wide">
+              <span>캘린더 이름</span>
+              <input name="name" value="내 亥日의 壬時" maxlength="100" required>
+            </label>
+            <label class="field wide">
+              <span>CalDAV 주소 이름</span>
+              <span class="slug-line">
+                <span aria-hidden="true">/</span>
+                <input name="slug" value="my-hai-ren-hours" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
+              </span>
+            </label>
+
+            <fieldset class="predicate wide">
+              <legend>조건 1 · 일주 기준</legend>
+              <label class="field">
+                <span>현재 값</span>
+                <select name="day_field" id="day-field">
+                  <option value="day.branch" selected>일지</option>
+                  <option value="day.stem">일간</option>
+                  <option value="day.branch_element">일지 오행</option>
+                  <option value="day.stem_element">일간 오행</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>비교 기준</span>
+                <select name="day_source" id="day-source">
+                  <option value="natal" selected>내 출생 명식과 같음</option>
+                  <option value="literal">값 직접 선택</option>
+                </select>
+              </label>
+              <label class="field wide" id="day-value-field" hidden>
+                <span>비교 값</span>
+                <select name="day_value" id="day-value"></select>
+              </label>
+            </fieldset>
+
+            <fieldset class="predicate wide">
+              <legend>조건 2 · 시간 기준</legend>
+              <label class="field">
+                <span>현재 값</span>
+                <select name="hour_field" id="hour-field">
+                  <option value="hour.stem" selected>시간</option>
+                  <option value="hour.branch">시지</option>
+                  <option value="hour.stem_element">시간 오행</option>
+                  <option value="hour.branch_element">시지 오행</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>비교 값</span>
+                <select name="hour_value" id="hour-value"></select>
+              </label>
+            </fieldset>
+
+            <label class="field wide compact-field">
+              <span>조건 결합</span>
+              <select name="logic">
+                <option value="all" selected>모든 조건 일치</option>
+                <option value="any">하나 이상 일치</option>
+              </select>
+            </label>
+            <button class="button primary wide" type="submit">맞춤 캘린더 만들기</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="library" aria-labelledby="library-title">
+        <header class="library-heading">
+          <div>
+            <p class="step">03 · 발행</p>
+            <h2 id="library-title">내 캘린더 서가</h2>
+          </div>
+          <p>미리보기로 확인한 뒤 CalDAV에 동기화하세요.</p>
+        </header>
+        <div id="calendar-list" class="calendar-list">
+          <p class="empty-state">아직 만든 캘린더가 없습니다.</p>
+        </div>
+      </section>
+    </main>
+
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+    <footer>
+      <p>ContextualWisdomLab · Saju CalDAV</p>
+      <p>표준시 기본 · 진태양시 선택 · 자시 00–01 / 23–24 분리</p>
+    </footer>
+  </body>
+</html>
