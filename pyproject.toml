@@ -12,7 +12,7 @@ dependencies = [
   "lunar-python==1.4.8",
   "radicale==3.7.6",
   "tzdata==2026.3",
-  "uvicorn==0.41.0",
+  "uvicorn==0.51.0",
 ]
 
 [dependency-groups]
