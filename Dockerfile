@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /srv/saju-caldav
 COPY pyproject.toml uv.lock requirements.lock README.md ./
 COPY app ./app
+COPY lunar_python ./lunar_python
 COPY radicale ./radicale
 COPY scripts ./scripts
 RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock \

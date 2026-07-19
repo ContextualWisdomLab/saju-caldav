@@ -37,6 +37,7 @@ def test_container_runs_unprivileged_and_compose_has_no_literal_secrets() -> Non
     assert "apt-get" not in dockerfile
     assert "--require-hashes -r requirements.lock" in dockerfile
     assert "pip install --no-cache-dir ." not in dockerfile
+    assert "COPY lunar_python ./lunar_python" in dockerfile
     assert "services:" in compose
     assert "web:" in compose
     assert "radicale:" in compose
