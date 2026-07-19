@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 from dataclasses import dataclass
 from datetime import UTC
-from urllib.error import HTTPError, URLError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urlsplit
 from xml.sax.saxutils import escape
 
+import httpx
 from icalendar import Calendar, Event
 
 from app.events import MatchingWindow
@@ -71,7 +69,18 @@ class SyncResult:
 
 class CalDavPublisher:
     def __init__(self, base_url: str, username: str, password: str, timeout: float = 10) -> None:
-        self.base_url = base_url.rstrip("/")
+        normalized_url = base_url.rstrip("/")
+        parsed = urlsplit(normalized_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("CalDAV base URL must be an http or https origin")
+        self.base_url = normalized_url
         self.username = username
         self.password = password
         self.timeout = timeout
@@ -84,26 +93,22 @@ class CalDavPublisher:
         content_type: str,
         accepted: set[int],
     ) -> int:
-        token = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
-        request = Request(
-            url,
-            data=data,
-            method=method,
-            headers={
-                "Authorization": f"Basic {token}",
-                "Content-Type": content_type,
-                "Accept": "application/xml, text/calendar",
-            },
-        )
         try:
-            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
-                status = response.status
-        except HTTPError as error:
-            if error.code in accepted:
-                return error.code
-            raise RuntimeError(f"CalDAV {method} failed with HTTP {error.code}") from error
-        except URLError as error:
-            raise RuntimeError(f"CalDAV {method} connection failed: {error.reason}") from error
+            response = httpx.request(
+                method,
+                url,
+                content=data,
+                headers={
+                    "Content-Type": content_type,
+                    "Accept": "application/xml, text/calendar",
+                },
+                auth=(self.username, self.password),
+                timeout=self.timeout,
+                follow_redirects=False,
+            )
+        except httpx.RequestError as error:
+            raise RuntimeError(f"CalDAV {method} connection failed") from error
+        status = response.status_code
         if status not in accepted:
             raise RuntimeError(f"CalDAV {method} returned unexpected HTTP {status}")
         return status

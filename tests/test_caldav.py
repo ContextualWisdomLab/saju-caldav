@@ -5,12 +5,18 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import ClassVar
 
+import pytest
 from icalendar import Calendar
 
 from app.caldav import CalDavPublisher, build_icalendar
 from app.events import generate_windows
 from app.rules import validate_rule
 from app.saju import calculate_chart
+
+
+def test_publisher_rejects_non_http_caldav_url() -> None:
+    with pytest.raises(ValueError, match="http or https"):
+        CalDavPublisher("file:///tmp/calendar", "caluser", "secret")
 
 
 def _acceptance_window():
@@ -92,4 +98,3 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
     assert _Recorder.requests[0][1] == "/caluser/my-hai-ren-hours/"
     assert _Recorder.requests[1][1].endswith(".ics")
     assert b"BEGIN:VEVENT" in _Recorder.requests[1][2]
-

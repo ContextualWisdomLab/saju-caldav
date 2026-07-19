@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import time
-from urllib.error import HTTPError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+
+import httpx
 
 
 def request(
@@ -20,22 +19,19 @@ def request(
     content_type: str = "application/json",
     headers: dict[str, str] | None = None,
 ) -> tuple[int, bytes]:
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    requested = Request(
+    response = httpx.request(
+        method,
         url,
-        data=body,
-        method=method,
+        content=body,
         headers={
-            "Authorization": f"Basic {token}",
             "Content-Type": content_type,
             **(headers or {}),
         },
+        auth=(username, password),
+        timeout=20,
+        follow_redirects=False,
     )
-    try:
-        with urlopen(requested, timeout=20) as response:  # noqa: S310
-            return response.status, response.read()
-    except HTTPError as error:
-        return error.code, error.read()
+    return response.status_code, response.content
 
 
 def api_json(
