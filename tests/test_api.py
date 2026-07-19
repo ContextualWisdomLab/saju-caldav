@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 from app.caldav import SyncResult
-from app.main import create_app
 from app.store import Store
 
 
@@ -32,7 +31,7 @@ class RecordingPublisher:
 def _client(tmp_path: Path) -> tuple[TestClient, RecordingPublisher]:
     store = Store(tmp_path / "saju.db")
     publisher = RecordingPublisher()
-    app = create_app(
+    app = main_module.create_app(
         store=store,
         username="operator",
         password="correct-horse-battery-staple",

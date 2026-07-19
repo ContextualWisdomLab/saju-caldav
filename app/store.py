@@ -55,17 +55,24 @@ class Store:
             columns = {
                 str(row[1]) for row in connection.execute("PRAGMA table_info(profiles)")
             }
-            additions = {
-                "birth_calendar": "TEXT NOT NULL DEFAULT 'solar'",
-                "birth_year": "INTEGER",
-                "birth_month": "INTEGER",
-                "birth_day": "INTEGER",
-                "birth_time": "TEXT",
-                "is_leap_month": "INTEGER NOT NULL DEFAULT 0",
-            }
-            for name, sql_type in additions.items():
-                if name not in columns:
-                    connection.execute(f"ALTER TABLE profiles ADD COLUMN {name} {sql_type}")
+            if "birth_calendar" not in columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN birth_calendar "
+                    "TEXT NOT NULL DEFAULT 'solar'"
+                )
+            if "birth_year" not in columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_year INTEGER")
+            if "birth_month" not in columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_month INTEGER")
+            if "birth_day" not in columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_day INTEGER")
+            if "birth_time" not in columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_time TEXT")
+            if "is_leap_month" not in columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN is_leap_month "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
             connection.execute(
                 """
                 UPDATE profiles
