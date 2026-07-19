@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import secrets
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -15,6 +15,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.birth import BirthInput, normalize_birth
 from app.caldav import CalDavPublisher, SyncResult
 from app.events import MatchingWindow, generate_windows
 from app.rules import Rule, validate_rule
@@ -46,7 +47,12 @@ class UnavailablePublisher:
 
 class ProfileCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    birth_local: datetime
+    birth_calendar: Literal["solar", "lunar"] = "solar"
+    birth_year: int = Field(ge=1000, le=2050)
+    birth_month: int = Field(ge=1, le=12)
+    birth_day: int = Field(ge=1, le=31)
+    birth_time: time
+    is_leap_month: bool = False
     gender: Literal["female", "male", "unspecified"] = "unspecified"
     timezone: str = Field(default="Asia/Seoul", min_length=1, max_length=80)
     time_mode: Literal["civil", "true_solar"] = "civil"
@@ -202,11 +208,19 @@ def create_app(
 
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
     def create_profile(requested: ProfileCreate) -> dict[str, object]:
-        if requested.birth_local.tzinfo is not None:
-            raise HTTPException(status_code=422, detail="birth_local must be local wall time")
         try:
+            birth_local = normalize_birth(
+                BirthInput(
+                    calendar=requested.birth_calendar,
+                    year=requested.birth_year,
+                    month=requested.birth_month,
+                    day=requested.birth_day,
+                    at=requested.birth_time,
+                    is_leap_month=requested.is_leap_month,
+                )
+            )
             chart = calculate_chart(
-                requested.birth_local,
+                birth_local,
                 requested.timezone,
                 requested.time_mode,
                 requested.longitude,
@@ -215,7 +229,13 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(error)) from error
         return metadata_store.create_profile(
             name=requested.name,
-            birth_local=requested.birth_local,
+            birth_calendar=requested.birth_calendar,
+            birth_year=requested.birth_year,
+            birth_month=requested.birth_month,
+            birth_day=requested.birth_day,
+            birth_time=requested.birth_time.isoformat(),
+            is_leap_month=requested.is_leap_month,
+            birth_local=birth_local,
             gender=requested.gender,
             timezone=requested.timezone,
             time_mode=requested.time_mode,

@@ -28,6 +28,12 @@ class Store:
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     birth_local TEXT NOT NULL,
+                    birth_calendar TEXT NOT NULL DEFAULT 'solar',
+                    birth_year INTEGER,
+                    birth_month INTEGER,
+                    birth_day INTEGER,
+                    birth_time TEXT,
+                    is_leap_month INTEGER NOT NULL DEFAULT 0,
                     gender TEXT NOT NULL,
                     timezone TEXT NOT NULL,
                     time_mode TEXT NOT NULL,
@@ -44,6 +50,35 @@ class Store:
                     created_at TEXT NOT NULL,
                     last_synced_at TEXT
                 );
+                """
+            )
+            columns = {
+                str(row[1]) for row in connection.execute("PRAGMA table_info(profiles)")
+            }
+            additions = {
+                "birth_calendar": "TEXT NOT NULL DEFAULT 'solar'",
+                "birth_year": "INTEGER",
+                "birth_month": "INTEGER",
+                "birth_day": "INTEGER",
+                "birth_time": "TEXT",
+                "is_leap_month": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for name, sql_type in additions.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE profiles ADD COLUMN {name} {sql_type}")
+            connection.execute(
+                """
+                UPDATE profiles
+                SET birth_year = COALESCE(
+                        birth_year, CAST(substr(birth_local, 1, 4) AS INTEGER)
+                    ),
+                    birth_month = COALESCE(
+                        birth_month, CAST(substr(birth_local, 6, 2) AS INTEGER)
+                    ),
+                    birth_day = COALESCE(
+                        birth_day, CAST(substr(birth_local, 9, 2) AS INTEGER)
+                    ),
+                    birth_time = COALESCE(birth_time, substr(birth_local, 12))
                 """
             )
 
@@ -67,6 +102,12 @@ class Store:
         self,
         *,
         name: str,
+        birth_calendar: str,
+        birth_year: int,
+        birth_month: int,
+        birth_day: int,
+        birth_time: str,
+        is_leap_month: bool,
         birth_local: datetime,
         gender: str,
         timezone: str,
@@ -79,14 +120,21 @@ class Store:
             connection.execute(
                 """
                 INSERT INTO profiles
-                    (id, name, birth_local, gender, timezone, time_mode, longitude,
-                     chart_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, name, birth_local, birth_calendar, birth_year, birth_month,
+                     birth_day, birth_time, is_leap_month, gender, timezone, time_mode,
+                     longitude, chart_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     profile_id,
                     name,
                     birth_local.isoformat(),
+                    birth_calendar,
+                    birth_year,
+                    birth_month,
+                    birth_day,
+                    birth_time,
+                    int(is_leap_month),
                     gender,
                     timezone,
                     time_mode,

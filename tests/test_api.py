@@ -47,9 +47,14 @@ def _create_profile(client: TestClient) -> dict[str, object]:
         "/api/profiles",
         auth=_auth(),
         json={
-            "name": "1990년 샘플",
-            "birth_local": "1990-06-15T08:30:00",
-            "gender": "female",
+            "name": "공개 테스트 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 1,
+            "birth_time": "12:15:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
             "timezone": "Asia/Seoul",
             "time_mode": "civil",
             "longitude": None,
@@ -65,13 +70,13 @@ def _create_calendar(client: TestClient, profile_id: str) -> dict[str, object]:
         auth=_auth(),
         json={
             "profile_id": profile_id,
-            "name": "내 亥日의 壬時",
-            "slug": "my-hai-ren-hours",
+            "name": "나의 맞춤 시간",
+            "slug": "my-custom-hours",
             "rule": {
                 "logic": "all",
                 "predicates": [
                     {"field": "day.branch", "source": "natal", "value": "day.branch"},
-                    {"field": "hour.stem", "source": "literal", "value": "壬"},
+                    {"field": "hour.stem", "source": "literal", "value": "戊"},
                 ],
             },
         },
@@ -106,38 +111,66 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     client, publisher = _client(tmp_path)
 
     profile = _create_profile(client)
-    assert profile["chart"]["day"] == {
-        "stem": "辛",
-        "branch": "亥",
-        "ganzhi": "辛亥",
-        "stem_element": "金",
-        "branch_element": "水",
-    }
-    assert profile["chart"]["hour"]["stem"] == "壬"
-    assert profile["gender"] == "female"
+    assert profile["chart"]["day"]["branch"] == "午"
+    assert profile["chart"]["hour"]["stem"] == "戊"
+    assert profile["birth_calendar"] == "solar"
+    assert profile["birth_local"] == "2000-01-01T12:15:00"
+    assert profile["gender"] == "unspecified"
 
     calendar = _create_calendar(client, str(profile["id"]))
     preview = client.post(
         f"/api/calendars/{calendar['id']}/preview",
         auth=_auth(),
-        json={"start_date": "1990-06-15", "end_date": "1990-06-15"},
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
     )
     assert preview.status_code == 200, preview.text
     assert preview.json()["count"] == 1
-    assert preview.json()["events"][0]["start"] == "1990-06-15T07:00:00+09:00"
-    assert preview.json()["events"][0]["hour_pillar"] == "壬辰"
+    assert preview.json()["events"][0]["start"] == "2000-01-01T11:00:00+09:00"
+    assert preview.json()["events"][0]["hour_pillar"] == "戊午"
 
     synced = client.post(
         f"/api/calendars/{calendar['id']}/sync",
         auth=_auth(),
-        json={"start_date": "1990-06-15", "end_date": "1990-06-15"},
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
     )
     assert synced.status_code == 200, synced.text
     assert synced.json() == {
-        "collection_url": "https://cal.example/operator/my-hai-ren-hours/",
+        "collection_url": "https://cal.example/operator/my-custom-hours/",
         "event_count": 1,
     }
-    assert publisher.calls[0]["slug"] == "my-hai-ren-hours"
+    assert publisher.calls[0]["slug"] == "my-custom-hours"
+
+
+def test_lunar_profile_keeps_original_input_and_normalizes_birth_time(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "음력 입력 예시",
+            "birth_calendar": "lunar",
+            "birth_year": 2024,
+            "birth_month": 1,
+            "birth_day": 1,
+            "birth_time": "08:30:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "timezone": "Asia/Seoul",
+            "time_mode": "civil",
+            "longitude": None,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    profile = response.json()
+    assert profile["birth_calendar"] == "lunar"
+    assert profile["birth_year"] == 2024
+    assert profile["birth_month"] == 1
+    assert profile["birth_day"] == 1
+    assert profile["birth_time"] == "08:30:00"
+    assert profile["is_leap_month"] == 0
+    assert profile["birth_local"] == "2024-02-10T08:30:00"
 
 
 def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:
