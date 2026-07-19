@@ -1,0 +1,40 @@
+[project]
+name = "saju-caldav"
+version = "0.1.0"
+description = "Custom Four Pillars calendars published over CalDAV"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "bcrypt==5.0.0",
+  "fastapi==0.139.2",
+  "httpx==0.28.1",
+  "icalendar==7.2.0",
+  "lunar-python==1.4.8",
+  "radicale==3.7.6",
+  "uvicorn==0.41.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.2",
+  "ruff==0.15.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
