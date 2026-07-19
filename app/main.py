@@ -82,6 +82,10 @@ def _pillar_json(pillar: Pillar) -> dict[str, str]:
         "ganzhi": pillar.ganzhi,
         "stem_element": pillar.stem_element,
         "branch_element": pillar.branch_element,
+        "stem_korean": pillar.stem_korean,
+        "stem_description": pillar.stem_description,
+        "branch_korean": pillar.branch_korean,
+        "branch_description": pillar.branch_description,
     }
 
 

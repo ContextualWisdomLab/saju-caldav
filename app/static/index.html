@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f2ede3">
-    <title>時曆 · Saju CalDAV</title>
+    <title>사주 캘린더 · CalDAV</title>
     <link rel="stylesheet" href="/static/styles.css">
     <script src="/static/app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">본문으로 건너뛰기</a>
     <header class="masthead">
-      <a class="wordmark" href="#main" aria-label="시력 홈">
+      <a class="wordmark" href="#main" aria-label="사주 캘린더 홈">
         <span class="seal" aria-hidden="true">時曆</span>
-        <span>Saju CalDAV</span>
+        <span>사주 캘린더</span>
       </a>
       <p class="edition">개인 운영자용 · Asia/Seoul</p>
     </header>
@@ -24,8 +24,8 @@
         <h1 id="hero-title">사주 명식을<br>시간 캘린더로</h1>
         <div class="hero-copy">
           <p>
-            출생 시각에서 년·월·일·시주를 계산하고, 원하는 간지 조건이 다시
-            만나는 시간을 개인 CalDAV 캘린더로 발행합니다.
+            양력이나 한국 음력 출생 시각에서 네 기둥을 계산하고, 원하는
+            사주 조건이 다시 만나는 실제 날짜와 시간을 개인 CalDAV 캘린더로 발행합니다.
           </p>
           <p class="disclaimer">
             문화·역법 참고 도구입니다. 운세의 과학적 타당성이나 인과관계를
@@ -41,44 +41,74 @@
           <header class="panel-heading">
             <p class="step">01 · 명식</p>
             <h2>출생 프로필</h2>
-            <p>양력의 현지 시각을 입력해 네 기둥을 계산합니다.</p>
+            <p>양력 또는 한국 음력의 현지 시각을 입력해 네 기둥을 계산합니다.</p>
           </header>
 
           <form id="profile-form" class="form-grid">
             <label class="field wide">
               <span>프로필 이름</span>
-              <input name="name" value="1990년 샘플" maxlength="80" required>
-            </label>
-            <label class="field wide">
-              <span>양력 생년월일과 탄생 시</span>
-              <input name="birth_local" type="datetime-local" value="1990-06-15T08:30" required>
+              <input name="name" value="내 출생 프로필" maxlength="80" required>
             </label>
             <label class="field">
-              <span>성별</span>
+              <span>달력 기준</span>
+              <select name="birth_calendar" id="birth-calendar">
+                <option value="solar" selected>양력</option>
+                <option value="lunar">한국 음력</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>탄생 시각</span>
+              <input name="birth_time" type="time" value="12:15" step="60" required>
+            </label>
+            <div class="date-fields wide" role="group" aria-label="생년월일">
+              <label class="field">
+                <span>태어난 해</span>
+                <input name="birth_year" type="number" min="1000" max="2050" value="2000" inputmode="numeric" required>
+              </label>
+              <label class="field">
+                <span>월</span>
+                <input name="birth_month" type="number" min="1" max="12" value="1" inputmode="numeric" required>
+              </label>
+              <label class="field">
+                <span>일</span>
+                <input name="birth_day" type="number" min="1" max="31" value="1" inputmode="numeric" required>
+              </label>
+            </div>
+            <label class="check-field wide" id="leap-month-field" hidden>
+              <input name="is_leap_month" type="checkbox">
+              <span>윤달로 입력합니다</span>
+            </label>
+            <label class="field wide">
+              <span>성별 <small>기록용</small></span>
               <select name="gender">
-                <option value="female" selected>여성</option>
+                <option value="female">여성</option>
                 <option value="male">남성</option>
-                <option value="unspecified">미지정</option>
+                <option value="unspecified" selected>미지정</option>
               </select>
             </label>
-            <label class="field">
-              <span>시간대</span>
-              <input name="timezone" value="Asia/Seoul" required>
-            </label>
-            <label class="field wide">
-              <span>시간 기준</span>
-              <select name="time_mode" id="time-mode">
-                <option value="civil" selected>표준시 · 기본</option>
-                <option value="true_solar">진태양시 · 경도 보정</option>
-              </select>
-            </label>
-            <label class="field wide" id="longitude-field" hidden>
-              <span>출생지 경도</span>
-              <input name="longitude" type="number" min="-180" max="180" step="0.001" value="126.978">
-            </label>
-            <p class="field-note wide">
-              성별은 기록용이며, 이번 버전의 사주 네 기둥 계산에는 영향을 주지 않습니다.
-            </p>
+            <details class="advanced-settings wide">
+              <summary>고급 시간 설정</summary>
+              <div class="advanced-grid">
+                <label class="field wide">
+                  <span>국가·지역 시간대</span>
+                  <input name="timezone" value="Asia/Seoul" required>
+                </label>
+                <label class="field wide">
+                  <span>시간 기준</span>
+                  <select name="time_mode" id="time-mode">
+                    <option value="civil" selected>공식 표준시 · 기본</option>
+                    <option value="true_solar">진태양시 · 경도 보정</option>
+                  </select>
+                </label>
+                <label class="field wide" id="longitude-field" hidden>
+                  <span>출생지 경도 <small>위도는 필요하지 않습니다</small></span>
+                  <input name="longitude" type="number" min="-180" max="180" step="0.001" value="126.978">
+                </label>
+              </div>
+              <p class="field-note">
+                대부분은 시간대만 확인하면 됩니다. 진태양시를 선택할 때만 경도를 사용합니다.
+              </p>
+            </details>
             <button class="button primary wide" type="submit">명식 계산하고 저장</button>
           </form>
 
@@ -108,13 +138,13 @@
             </label>
             <label class="field wide">
               <span>캘린더 이름</span>
-              <input name="name" value="내 亥日의 壬時" maxlength="100" required>
+              <input name="name" value="나의 맞춤 시간" maxlength="100" required>
             </label>
             <label class="field wide">
               <span>CalDAV 주소 이름</span>
               <span class="slug-line">
                 <span aria-hidden="true">/</span>
-                <input name="slug" value="my-hai-ren-hours" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
+                <input name="slug" value="my-custom-hours" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
               </span>
             </label>
 
@@ -123,10 +153,10 @@
               <label class="field">
                 <span>현재 값</span>
                 <select name="day_field" id="day-field">
-                  <option value="day.branch" selected>일지</option>
-                  <option value="day.stem">일간</option>
-                  <option value="day.branch_element">일지 오행</option>
-                  <option value="day.stem_element">일간 오행</option>
+                  <option value="day.branch" selected>일주의 지지</option>
+                  <option value="day.stem">일주의 천간</option>
+                  <option value="day.branch_element">일주 지지의 오행</option>
+                  <option value="day.stem_element">일주 천간의 오행</option>
                 </select>
               </label>
               <label class="field">
@@ -147,10 +177,10 @@
               <label class="field">
                 <span>현재 값</span>
                 <select name="hour_field" id="hour-field">
-                  <option value="hour.stem" selected>시간</option>
-                  <option value="hour.branch">시지</option>
-                  <option value="hour.stem_element">시간 오행</option>
-                  <option value="hour.branch_element">시지 오행</option>
+                  <option value="hour.stem" selected>시주의 천간</option>
+                  <option value="hour.branch">시주의 지지</option>
+                  <option value="hour.stem_element">시주 천간의 오행</option>
+                  <option value="hour.branch_element">시주 지지의 오행</option>
                 </select>
               </label>
               <label class="field">

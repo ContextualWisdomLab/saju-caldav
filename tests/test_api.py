@@ -113,6 +113,8 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     profile = _create_profile(client)
     assert profile["chart"]["day"]["branch"] == "午"
     assert profile["chart"]["hour"]["stem"] == "戊"
+    assert profile["chart"]["day"]["branch_korean"] == "오화"
+    assert profile["chart"]["hour"]["stem_description"] == "양의 성질을 가진 큰땅"
     assert profile["birth_calendar"] == "solar"
     assert profile["birth_local"] == "2000-01-01T12:15:00"
     assert profile["gender"] == "unspecified"

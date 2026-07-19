@@ -3,6 +3,20 @@ const state = { profiles: [], calendars: [] };
 const stems = [..."甲乙丙丁戊己庚辛壬癸"];
 const branches = [..."子丑寅卯辰巳午未申酉戌亥"];
 const elements = [..."木火土金水"];
+const stemLabels = {
+  "甲": "갑목 — 양의 큰나무", "乙": "을목 — 음의 풀과 덩굴",
+  "丙": "병화 — 양의 큰불", "丁": "정화 — 음의 작은불",
+  "戊": "무토 — 양의 큰땅", "己": "기토 — 음의 부드러운 땅",
+  "庚": "경금 — 양의 단단한 쇠", "辛": "신금 — 음의 세밀한 쇠",
+  "壬": "임수 — 양의 큰물", "癸": "계수 — 음의 작은물",
+};
+const branchLabels = {
+  "子": "자수 — 쥐·물", "丑": "축토 — 소·흙", "寅": "인목 — 호랑이·나무",
+  "卯": "묘목 — 토끼·나무", "辰": "진토 — 용·흙", "巳": "사화 — 뱀·불",
+  "午": "오화 — 말·불", "未": "미토 — 양·흙", "申": "신금 — 원숭이·쇠",
+  "酉": "유금 — 닭·쇠", "戌": "술토 — 개·흙", "亥": "해수 — 돼지·물",
+};
+const elementLabels = { "木": "나무", "火": "불", "土": "흙", "金": "쇠", "水": "물" };
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -45,7 +59,12 @@ function serializeForm(form) {
 }
 
 function pillarMarkup(label, pillar) {
-  return `<div class="pillar"><span>${escapeHtml(label)}</span><strong>${escapeHtml(pillar.ganzhi)}</strong><small>${escapeHtml(pillar.stem_element)} · ${escapeHtml(pillar.branch_element)}</small></div>`;
+  return `<div class="pillar">
+    <span>${escapeHtml(label)}</span>
+    <strong>${escapeHtml(pillar.stem_korean)} · ${escapeHtml(pillar.branch_korean)}</strong>
+    <small>${escapeHtml(pillar.stem_description)}<br>${escapeHtml(pillar.branch_description)}</small>
+    <details><summary>한자 표기</summary><b lang="zh-Hant">${escapeHtml(pillar.ganzhi)}</b></details>
+  </div>`;
 }
 
 function showChart(profile) {
@@ -57,7 +76,7 @@ function showChart(profile) {
     pillarMarkup("일주", chart.day),
     pillarMarkup("시주", chart.hour),
   ].join("");
-  $("#acceptance-note").textContent = `일지 ${chart.day.branch}${chart.day.branch_element} · 시간 ${chart.hour.stem}${chart.hour.stem_element}`;
+  $("#acceptance-note").textContent = `일주의 지지는 ${chart.day.branch_korean}, 시주의 천간은 ${chart.hour.stem_korean}입니다.`;
   $("#chart-result").hidden = false;
 }
 
@@ -70,7 +89,7 @@ function renderProfiles() {
     return;
   }
   select.innerHTML = state.profiles
-    .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.chart.day.ganzhi)}일 ${escapeHtml(profile.chart.hour.ganzhi)}시</option>`)
+    .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · 일지 ${escapeHtml(profile.chart.day.branch_korean)}, 시간 ${escapeHtml(profile.chart.hour.stem_korean)}</option>`)
     .join("");
   select.value = state.profiles.some((profile) => profile.id === selected)
     ? selected
@@ -80,16 +99,18 @@ function renderProfiles() {
 
 function predicateLabel(predicate) {
   const labels = {
-    "day.branch": "일지",
-    "day.stem": "일간",
-    "day.branch_element": "일지 오행",
-    "day.stem_element": "일간 오행",
-    "hour.stem": "시간",
-    "hour.branch": "시지",
-    "hour.stem_element": "시간 오행",
-    "hour.branch_element": "시지 오행",
+    "day.branch": "일주의 지지",
+    "day.stem": "일주의 천간",
+    "day.branch_element": "일주 지지의 오행",
+    "day.stem_element": "일주 천간의 오행",
+    "hour.stem": "시주의 천간",
+    "hour.branch": "시주의 지지",
+    "hour.stem_element": "시주 천간의 오행",
+    "hour.branch_element": "시주 지지의 오행",
   };
-  const value = predicate.source === "natal" ? `출생 ${labels[predicate.value]}` : predicate.value;
+  const value = predicate.source === "natal"
+    ? `출생 ${labels[predicate.value]}`
+    : optionLabel(predicate.field, predicate.value);
   return `${labels[predicate.field]} = ${value}`;
 }
 
@@ -125,11 +146,17 @@ function optionsForField(field) {
   return elements;
 }
 
+function optionLabel(field, value) {
+  if (field.endsWith("stem")) return `${stemLabels[value]} (${value})`;
+  if (field.endsWith("branch")) return `${branchLabels[value]} (${value})`;
+  return `${elementLabels[value]} (${value})`;
+}
+
 function updateValueSelect(fieldSelector, valueSelector, preferred) {
   const field = $(fieldSelector).value;
   const values = optionsForField(field);
   $(valueSelector).innerHTML = values
-    .map((value) => `<option value="${value}"${value === preferred ? " selected" : ""}>${value}</option>`)
+    .map((value) => `<option value="${value}"${value === preferred ? " selected" : ""}>${escapeHtml(optionLabel(field, value))}</option>`)
     .join("");
 }
 
@@ -154,6 +181,12 @@ $("#time-mode").addEventListener("change", (event) => {
   $("#longitude-field").hidden = event.target.value !== "true_solar";
 });
 
+$("#birth-calendar").addEventListener("change", (event) => {
+  const lunar = event.target.value === "lunar";
+  $("#leap-month-field").hidden = !lunar;
+  if (!lunar) $("#leap-month-field input").checked = false;
+});
+
 $("#profile-select").addEventListener("change", (event) => {
   const profile = state.profiles.find((item) => item.id === event.target.value);
   if (profile) showChart(profile);
@@ -176,6 +209,10 @@ $("#profile-form").addEventListener("submit", async (event) => {
   const values = serializeForm(event.currentTarget);
   const payload = {
     ...values,
+    birth_year: Number(values.birth_year),
+    birth_month: Number(values.birth_month),
+    birth_day: Number(values.birth_day),
+    is_leap_month: event.currentTarget.elements.is_leap_month.checked,
     longitude: values.time_mode === "true_solar" ? Number(values.longitude) : null,
   };
   try {
@@ -259,6 +296,6 @@ $("#calendar-list").addEventListener("click", async (event) => {
   }
 });
 
-updateValueSelect("#day-field", "#day-value", "亥");
-updateValueSelect("#hour-field", "#hour-value", "壬");
+updateValueSelect("#day-field", "#day-value", "午");
+updateValueSelect("#hour-field", "#hour-value", "戊");
 refresh().catch((error) => notify(`초기 데이터를 읽지 못했습니다: ${error.message}`, true));
