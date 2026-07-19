@@ -179,6 +179,10 @@ idna==3.18 \
     #   anyio
     #   httpx
     #   requests
+korean-lunar-calendar==0.4.0 \
+    --hash=sha256:be56f27bc0594fdbbdf7bbe00f504a9f929a31e311bd7d9bb93561b645afade7 \
+    --hash=sha256:c042e20de0bb702add6bec8d0f6da1ea8d3b170838e63846f70420cf341fe4e7
+    # via saju-caldav
 libpass==1.9.3 \
     --hash=sha256:3cbeb14d22086660e92c30d787ea981973d67394e81c8c870e1a83cfe1c84353 \
     --hash=sha256:7830b9323d9ba96a841ad698a8dec1d43a2b0b7f1c855c76772e7972c1c6d959

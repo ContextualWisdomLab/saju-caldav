@@ -9,6 +9,7 @@ dependencies = [
   "fastapi==0.139.2",
   "httpx==0.28.1",
   "icalendar==7.2.0",
+  "korean-lunar-calendar==0.4.0",
   "lunar-python==1.4.8",
   "radicale==3.7.6",
   "tzdata==2026.3",
