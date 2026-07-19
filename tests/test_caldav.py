@@ -19,22 +19,22 @@ def test_publisher_rejects_non_http_caldav_url() -> None:
         CalDavPublisher("file:///tmp/calendar", "caluser", "secret")
 
 
-def _acceptance_window():
-    natal = calculate_chart(datetime(1990, 6, 15, 8, 30), "Asia/Seoul", "civil", None)
+def _public_window():
+    natal = calculate_chart(datetime(2000, 1, 1, 12, 15), "Asia/Seoul", "civil", None)
     rule = validate_rule(
         {
             "logic": "all",
             "predicates": [
                 {"field": "day.branch", "source": "natal", "value": "day.branch"},
-                {"field": "hour.stem", "source": "literal", "value": "壬"},
+                {"field": "hour.stem", "source": "literal", "value": "戊"},
             ],
         }
     )
     return generate_windows(
         rule,
         natal,
-        date(1990, 6, 15),
-        date(1990, 6, 15),
+        date(2000, 1, 1),
+        date(2000, 1, 1),
         "Asia/Seoul",
         "civil",
         None,
@@ -42,9 +42,9 @@ def _acceptance_window():
 
 
 def test_build_icalendar_emits_stable_private_transparent_event() -> None:
-    window = _acceptance_window()
-    first = build_icalendar("calendar-1", "내 亥日의 壬時", window)
-    second = build_icalendar("calendar-1", "내 亥日의 壬時", window)
+    window = _public_window()
+    first = build_icalendar("calendar-1", "나의 맞춤 시간", window)
+    second = build_icalendar("calendar-1", "나의 맞춤 시간", window)
     parsed = Calendar.from_ical(first)
     event = next(component for component in parsed.walk() if component.name == "VEVENT")
 
@@ -52,11 +52,14 @@ def test_build_icalendar_emits_stable_private_transparent_event() -> None:
     assert event["UID"].endswith("@saju-caldav")
     assert event.decoded("DTSTART") == window.start
     assert event.decoded("DTEND") == window.end
-    assert "辛亥일 · 壬辰시" in str(event["SUMMARY"])
+    assert str(event["SUMMARY"]) == "나의 맞춤 시간"
     assert event["TRANSP"] == "TRANSPARENT"
     assert event["CLASS"] == "PRIVATE"
-    assert "일지: 亥水" in str(event["DESCRIPTION"])
-    assert "시간: 壬水" in str(event["DESCRIPTION"])
+    assert str(event["DESCRIPTION"]) == "사용자가 설정한 맞춤 시간입니다."
+    assert event.get("CATEGORIES") is None
+    assert not any(str(key).startswith("X-SAJU") for key in event)
+    assert window.chart.day.ganzhi.encode() not in first
+    assert window.chart.hour.ganzhi.encode() not in first
 
 
 class _Recorder(BaseHTTPRequestHandler):
@@ -85,7 +88,7 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
             f"http://127.0.0.1:{server.server_port}", "caluser", "secret", timeout=2
         )
         result = publisher.sync(
-            "calendar-1", "my-hai-ren-hours", "내 亥日의 壬時", [_acceptance_window()]
+            "calendar-1", "my-custom-hours", "나의 맞춤 시간", [_public_window()]
         )
     finally:
         server.shutdown()
@@ -93,8 +96,8 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
         thread.join(timeout=2)
 
     assert result.event_count == 1
-    assert result.collection_url.endswith("/caluser/my-hai-ren-hours/")
+    assert result.collection_url.endswith("/caluser/my-custom-hours/")
     assert [request[0] for request in _Recorder.requests] == ["MKCALENDAR", "PUT"]
-    assert _Recorder.requests[0][1] == "/caluser/my-hai-ren-hours/"
+    assert _Recorder.requests[0][1] == "/caluser/my-custom-hours/"
     assert _Recorder.requests[1][1].endswith(".ics")
     assert b"BEGIN:VEVENT" in _Recorder.requests[1][2]

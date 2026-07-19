@@ -35,28 +35,10 @@ def build_icalendar(
     event.add("dtstamp", window.start.astimezone(UTC))
     event.add("dtstart", window.start)
     event.add("dtend", window.end)
-    event.add(
-        "summary",
-        f"{window.chart.day.ganzhi}일 · {window.chart.hour.ganzhi}시 — {calendar_name}",
-    )
-    event.add(
-        "description",
-        "\n".join(
-            (
-                f"규칙 캘린더: {calendar_name}",
-                f"일주: {window.chart.day.ganzhi}",
-                f"일지: {window.chart.day.branch}{window.chart.day.branch_element}",
-                f"시주: {window.chart.hour.ganzhi}",
-                f"시간: {window.chart.hour.stem}{window.chart.hour.stem_element}",
-                "문화·역법 참고용이며 운세의 과학적 타당성을 주장하지 않습니다.",
-            )
-        ),
-    )
+    event.add("summary", calendar_name)
+    event.add("description", "사용자가 설정한 맞춤 시간입니다.")
     event.add("transp", "TRANSPARENT")
     event.add("class", "PRIVATE")
-    event.add("categories", ["SAJU", "GANZHI"])
-    event.add("x-saju-day-pillar", window.chart.day.ganzhi)
-    event.add("x-saju-hour-pillar", window.chart.hour.ganzhi)
     calendar.add_component(event)
     return calendar.to_ical()
 
