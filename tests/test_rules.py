@@ -7,7 +7,7 @@ from app.saju import calculate_chart
 
 
 def _acceptance_chart():
-    return calculate_chart(datetime(1990, 6, 15, 8, 30), "Asia/Seoul", "civil", None)
+    return calculate_chart(datetime(2000, 1, 1, 12, 15), "Asia/Seoul", "civil", None)
 
 
 def test_natal_day_branch_and_literal_hour_stem_match() -> None:
@@ -17,7 +17,7 @@ def test_natal_day_branch_and_literal_hour_stem_match() -> None:
             "logic": "all",
             "predicates": [
                 {"field": "day.branch", "source": "natal", "value": "day.branch"},
-                {"field": "hour.stem", "source": "literal", "value": "壬"},
+                {"field": "hour.stem", "source": "literal", "value": "戊"},
             ],
         }
     )
@@ -35,4 +35,3 @@ def test_unknown_rule_fields_are_rejected() -> None:
                 ],
             }
         )
-

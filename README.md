@@ -77,6 +77,7 @@ uv run python scripts/acceptance_smoke.py
 - [Figma 운영자 콘솔](https://www.figma.com/design/P4wdj2MnYwItYch3zdGIWt)
 - [제품 설계](docs/superpowers/specs/2026-07-19-saju-caldav-design.md)
 - [구현 계획](docs/superpowers/plans/2026-07-19-saju-caldav.md)
+- [제3자 소프트웨어 고지](THIRD_PARTY_NOTICES.md)
 
 ## 개인정보
 

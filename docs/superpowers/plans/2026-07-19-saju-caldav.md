@@ -33,18 +33,16 @@
 - Produces: `chart_for_local(local_dt: datetime, timezone: str, time_mode: str, longitude: float | None) -> Chart`
 - Produces: immutable `Pillar` and `Chart` dataclasses with stem/branch element fields.
 
-- [ ] **Step 1: Create project metadata and write the failing acceptance test**
+- [ ] **Step 1: Create project metadata and write a failing synthetic chart test**
 
 ```python
-def test_acceptance_birth_chart_is_xinhai_and_renchen():
-    chart = calculate_chart(datetime(1990, 6, 15, 8, 30), "Asia/Seoul", "civil", None)
-    assert chart.day.ganzhi == expected_private_day
-    assert chart.day.branch == "亥"
-    assert chart.day.branch_element == "水"
-    assert chart.hour.ganzhi == expected_private_hour
-    assert chart.hour.stem == "壬"
-    assert chart.hour.stem_element == "水"
+def test_public_example_chart_is_deterministic():
+    chart = calculate_chart(public_example_datetime, "Asia/Seoul", "civil", None)
+    assert chart.day.ganzhi == expected_public_day
+    assert chart.hour.ganzhi == expected_public_hour
 ```
+
+실제 사용자 회귀 입력과 기대값은 저장소에 기록하지 않고 환경 변수로만 주입합니다.
 
 - [ ] **Step 2: Run `uv run pytest tests/test_saju.py -q` and verify import failure**
 - [ ] **Step 3: Implement the minimum immutable chart model, lunar-python bridge, hour-stem formula, and optional solar correction**
@@ -64,7 +62,7 @@ def test_acceptance_birth_chart_is_xinhai_and_renchen():
 - Produces: `Predicate`, `Rule`, `validate_rule(data: dict) -> Rule`, and `matches(rule: Rule, natal: Chart, current: Chart) -> bool`.
 - Produces: `MatchingWindow` and `generate_windows(rule, natal, start_date, end_date, timezone, time_mode, longitude)`.
 
-- [ ] **Step 1: Write a failing rule test using `day.branch = natal.day.branch` and `hour.stem = literal 壬`**
+- [ ] **Step 1: Write a failing rule test using only a public synthetic chart fixture**
 - [ ] **Step 2: Run `uv run pytest tests/test_rules.py -q` and verify the missing module failure**
 - [ ] **Step 3: Implement allow-listed equality predicates and reject unknown fields, sources, and empty predicate sets**
 - [ ] **Step 4: Write failing event tests for private matched windows, stable ordering, 730-day bounds, and split Zi segments**
