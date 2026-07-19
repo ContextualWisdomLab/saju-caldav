@@ -11,6 +11,12 @@ def test_korean_lunar_new_year_normalizes_to_gregorian_local_time():
     assert normalize_birth(value) == datetime(2024, 2, 10, 8, 30)
 
 
+def test_valid_korean_lunar_leap_month_normalizes_to_gregorian_local_time():
+    value = BirthInput("lunar", 2023, 2, 1, time(8, 30), True)
+
+    assert normalize_birth(value) == datetime(2023, 3, 22, 8, 30)
+
+
 def test_impossible_leap_month_is_rejected():
     value = BirthInput("lunar", 2024, 1, 1, time(8, 30), True)
 

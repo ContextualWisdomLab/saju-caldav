@@ -58,6 +58,14 @@ def main() -> None:
     caldav_base = os.environ.get("CALDAV_PUBLIC_URL", "http://127.0.0.1:5232")
     caldav_user = os.environ["CALDAV_USERNAME"]
     caldav_password = os.environ["CALDAV_PASSWORD"]
+    visibility = os.environ.get("SMOKE_VISIBILITY", "private")
+    visibility_classes = {
+        "private": b"PRIVATE",
+        "confidential": b"CONFIDENTIAL",
+        "public": b"PUBLIC",
+    }
+    if visibility not in visibility_classes:
+        raise ValueError("SMOKE_VISIBILITY must be private, confidential, or public")
     suffix = f"{int(time.time())}-{os.getpid()}"
     profile_id = ""
     collection_url = f"{caldav_base.rstrip('/')}/{quote(caldav_user, safe='')}/smoke-{suffix}/"
@@ -86,6 +94,7 @@ def main() -> None:
                 "birth_time": birth_local.time().isoformat(),
                 "is_leap_month": False,
                 "gender": "unspecified",
+                "birth_city": "seoul",
                 "timezone": os.environ.get("PRIVATE_TIMEZONE", "Asia/Seoul"),
                 "time_mode": "civil",
                 "longitude": None,
@@ -116,6 +125,7 @@ def main() -> None:
                 "profile_id": profile_id,
                 "name": "맞춤 시간",
                 "slug": f"smoke-{suffix}",
+                "visibility": visibility,
                 "rule": {
                     "logic": "all",
                     "predicates": [
@@ -134,6 +144,7 @@ def main() -> None:
             },
         )
         assert status == 201 and isinstance(calendar, dict), (status, calendar)
+        assert calendar["visibility"] == visibility
         calendar_id = str(calendar["id"])
         range_payload: dict[str, object] = {}
 
@@ -187,7 +198,7 @@ def main() -> None:
             caldav_password,
         )
         assert status == 200, (status, event[:500])
-        assert b"CLASS:PRIVATE" in event
+        assert b"CLASS:" + visibility_classes[visibility] in event
         assert b"X-SAJU" not in event
         print(f"SAJU_CALDAV_SMOKE_OK event_count={preview['count']}")
     finally:

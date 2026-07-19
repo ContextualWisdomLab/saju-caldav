@@ -18,6 +18,8 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
         birth_time="12:15:00",
         is_leap_month=False,
         birth_local=datetime(2000, 1, 1, 12, 15),
+        birth_city="seoul",
+        birth_city_name="대한민국 · 서울",
         gender="unspecified",
         timezone="Asia/Seoul",
         time_mode="civil",
@@ -28,6 +30,7 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
         profile_id=profile["id"],
         name="나의 맞춤 시간",
         slug="my-custom-hours",
+        visibility="private",
         rule={
             "logic": "all",
             "predicates": [
@@ -39,6 +42,8 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
 
     assert store.get_profile(profile["id"])["chart"]["day"]["branch"] == "午"
     assert store.get_profile(profile["id"])["birth_calendar"] == "solar"
+    assert store.get_profile(profile["id"])["birth_city"] == "seoul"
+    assert store.get_calendar(calendar["id"])["visibility"] == "private"
     assert store.get_calendar(calendar["id"])["rule"]["predicates"][1]["value"] == "戊"
     assert len(store.list_profiles()) == 1
     assert len(store.list_calendars(profile["id"])) == 1
@@ -106,3 +111,11 @@ def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> No
     assert profile["birth_day"] == 3
     assert profile["birth_time"] == "04:05:06"
     assert profile["is_leap_month"] == 0
+    assert profile["birth_city"] is None
+    assert profile["birth_city_name"] is None
+
+    calendar_columns = {
+        row[1]
+        for row in sqlite3.connect(database).execute("PRAGMA table_info(calendars)")
+    }
+    assert "visibility" in calendar_columns

@@ -13,12 +13,13 @@ class RecordingPublisher:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
-    def sync(self, calendar_id, slug, calendar_name, windows):
+    def sync(self, calendar_id, slug, calendar_name, visibility, windows):
         self.calls.append(
             {
                 "calendar_id": calendar_id,
                 "slug": slug,
                 "calendar_name": calendar_name,
+                "visibility": visibility,
                 "windows": windows,
             }
         )
@@ -58,6 +59,7 @@ def _create_profile(client: TestClient) -> dict[str, object]:
             "is_leap_month": False,
             "gender": "unspecified",
             "timezone": "Asia/Seoul",
+            "birth_city": "seoul",
             "time_mode": "civil",
             "longitude": None,
         },
@@ -74,6 +76,7 @@ def _create_calendar(client: TestClient, profile_id: str) -> dict[str, object]:
             "profile_id": profile_id,
             "name": "나의 맞춤 시간",
             "slug": "my-custom-hours",
+            "visibility": "confidential",
             "rule": {
                 "logic": "all",
                 "predicates": [
@@ -95,6 +98,10 @@ def test_health_and_operator_authentication(tmp_path: Path) -> None:
     assert unauthorized.status_code == 401
     assert unauthorized.headers["www-authenticate"] == "Basic"
     assert client.get("/api/profiles", auth=_auth()).json() == []
+    locations = client.get("/api/locations", auth=_auth())
+    assert locations.status_code == 200
+    assert locations.json()[0]["label"] == "대한민국 · 서울"
+    assert "longitude" not in locations.json()[0]
 
 
 def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
@@ -105,6 +112,9 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert page.status_code == 200
     assert "사주 명식을" in page.text
     assert "시간 캘린더로" in page.text
+    assert "출생 도시" in page.text
+    assert 'name="longitude"' not in page.text
+    assert 'name="visibility"' in page.text
     assert client.get("/static/styles.css").status_code == 200
     assert client.get("/static/app.js").status_code == 200
 
@@ -120,8 +130,11 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     assert profile["birth_calendar"] == "solar"
     assert profile["birth_local"] == "2000-01-01T12:15:00"
     assert profile["gender"] == "unspecified"
+    assert profile["birth_city"] == "seoul"
+    assert profile["birth_city_name"] == "대한민국 · 서울"
 
     calendar = _create_calendar(client, str(profile["id"]))
+    assert calendar["visibility"] == "confidential"
     preview = client.post(
         f"/api/calendars/{calendar['id']}/preview",
         auth=_auth(),
@@ -145,6 +158,38 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
         "event_count": 1,
     }
     assert publisher.calls[0]["slug"] == "my-custom-hours"
+    assert publisher.calls[0]["visibility"] == "confidential"
+
+
+def test_city_automatically_supplies_timezone_and_true_solar_longitude(
+    tmp_path: Path,
+) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "도시 자동 설정 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 1,
+            "birth_time": "12:15:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "birth_city": "seoul",
+            "timezone": "Etc/UTC",
+            "time_mode": "true_solar",
+            "longitude": None,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    profile = response.json()
+    assert profile["timezone"] == "Asia/Seoul"
+    assert profile["longitude"] == 126.978
+    assert profile["birth_city_name"] == "대한민국 · 서울"
 
 
 def test_lunar_profile_keeps_original_input_and_normalizes_birth_time(tmp_path: Path) -> None:

@@ -86,12 +86,21 @@
                 <option value="unspecified" selected>미지정</option>
               </select>
             </label>
+            <label class="field wide">
+              <span>출생 도시 <small>좌표는 입력하지 않습니다</small></span>
+              <select name="birth_city" id="birth-city">
+                <option value="seoul" selected>대한민국 · 서울</option>
+                <option value="busan">대한민국 · 부산</option>
+                <option value="jeju">대한민국 · 제주</option>
+                <option value="">목록에 없음 · 시간대 직접 지정</option>
+              </select>
+            </label>
             <details class="advanced-settings wide">
               <summary>고급 시간 설정</summary>
               <div class="advanced-grid">
                 <label class="field wide">
                   <span>국가·지역 시간대</span>
-                  <input name="timezone" value="Asia/Seoul" required>
+                  <input name="timezone" id="timezone" value="Asia/Seoul" readonly required>
                 </label>
                 <label class="field wide">
                   <span>시간 기준</span>
@@ -100,13 +109,9 @@
                     <option value="true_solar">진태양시 · 경도 보정</option>
                   </select>
                 </label>
-                <label class="field wide" id="longitude-field" hidden>
-                  <span>출생지 경도 <small>위도는 필요하지 않습니다</small></span>
-                  <input name="longitude" type="number" min="-180" max="180" step="0.001" value="126.978">
-                </label>
               </div>
-              <p class="field-note">
-                대부분은 시간대만 확인하면 됩니다. 진태양시를 선택할 때만 경도를 사용합니다.
+              <p class="field-note" id="place-note">
+                선택한 도시에서 시간대를 자동 적용합니다. 기본 표준시는 좌표를 사용하지 않습니다.
               </p>
             </details>
             <button class="button primary wide" type="submit">명식 계산하고 저장</button>
@@ -146,6 +151,15 @@
                 <span aria-hidden="true">/</span>
                 <input name="slug" value="my-custom-hours" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
               </span>
+            </label>
+            <label class="field wide">
+              <span>공개 수준</span>
+              <select name="visibility">
+                <option value="private" selected>비공개 · 기본</option>
+                <option value="confidential">제한 공개</option>
+                <option value="public">공개 표시</option>
+              </select>
+              <small class="field-note">CalDAV 계정 인증은 항상 필요하며, 이 값은 일정 앱의 공개 분류 표시를 정합니다.</small>
             </label>
 
             <fieldset class="predicate wide">

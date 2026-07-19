@@ -62,3 +62,17 @@ def test_midnight_changes_the_day_inside_the_split_zi_hour() -> None:
     assert before_midnight.hour.branch == after_midnight.hour.branch == "子"
     assert before_midnight.day != after_midnight.day
     assert before_midnight.hour.stem != after_midnight.hour.stem
+
+
+def test_ipchun_changes_year_and_month_pillars_at_the_solar_term() -> None:
+    before = calculate_chart(
+        datetime(2024, 2, 4, 16, 20), "Asia/Seoul", "civil", None
+    )
+    after = calculate_chart(
+        datetime(2024, 2, 4, 17, 20), "Asia/Seoul", "civil", None
+    )
+
+    assert before.year.ganzhi == "癸卯"
+    assert before.month.ganzhi == "乙丑"
+    assert after.year.ganzhi == "甲辰"
+    assert after.month.ganzhi == "丙寅"

@@ -43,8 +43,8 @@ def _public_window():
 
 def test_build_icalendar_emits_stable_private_transparent_event() -> None:
     window = _public_window()
-    first = build_icalendar("calendar-1", "나의 맞춤 시간", window)
-    second = build_icalendar("calendar-1", "나의 맞춤 시간", window)
+    first = build_icalendar("calendar-1", "나의 맞춤 시간", "private", window)
+    second = build_icalendar("calendar-1", "나의 맞춤 시간", "private", window)
     parsed = Calendar.from_ical(first)
     event = next(component for component in parsed.walk() if component.name == "VEVENT")
 
@@ -60,6 +60,26 @@ def test_build_icalendar_emits_stable_private_transparent_event() -> None:
     assert not any(str(key).startswith("X-SAJU") for key in event)
     assert window.chart.day.ganzhi.encode() not in first
     assert window.chart.hour.ganzhi.encode() not in first
+
+
+@pytest.mark.parametrize(
+    ("visibility", "ical_class"),
+    [
+        ("private", "PRIVATE"),
+        ("confidential", "CONFIDENTIAL"),
+        ("public", "PUBLIC"),
+    ],
+)
+def test_build_icalendar_maps_user_visibility_to_rfc_class(
+    visibility: str, ical_class: str
+) -> None:
+    parsed = Calendar.from_ical(
+        build_icalendar("calendar-1", "일정 공개 수준", visibility, _public_window())
+    )
+    event = next(component for component in parsed.walk() if component.name == "VEVENT")
+
+    assert event["CLASS"] == ical_class
+    assert str(event["DESCRIPTION"]) == "사용자가 설정한 맞춤 시간입니다."
 
 
 class _Recorder(BaseHTTPRequestHandler):
@@ -88,7 +108,11 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
             f"http://127.0.0.1:{server.server_port}", "caluser", "secret", timeout=2
         )
         result = publisher.sync(
-            "calendar-1", "my-custom-hours", "나의 맞춤 시간", [_public_window()]
+            "calendar-1",
+            "my-custom-hours",
+            "나의 맞춤 시간",
+            "confidential",
+            [_public_window()],
         )
     finally:
         server.shutdown()
@@ -101,3 +125,4 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
     assert _Recorder.requests[0][1] == "/caluser/my-custom-hours/"
     assert _Recorder.requests[1][1].endswith(".ics")
     assert b"BEGIN:VEVENT" in _Recorder.requests[1][2]
+    assert b"CLASS:CONFIDENTIAL" in _Recorder.requests[1][2]

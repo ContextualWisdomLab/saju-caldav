@@ -13,6 +13,12 @@ from icalendar import Calendar, Event
 
 from app.events import MatchingWindow
 
+VISIBILITY_CLASSES = {
+    "private": "PRIVATE",
+    "confidential": "CONFIDENTIAL",
+    "public": "PUBLIC",
+}
+
 
 def event_uid(calendar_id: str, window: MatchingWindow) -> str:
     identity = f"{calendar_id}|{window.start.isoformat()}|{window.end.isoformat()}|v1"
@@ -22,8 +28,13 @@ def event_uid(calendar_id: str, window: MatchingWindow) -> str:
 def build_icalendar(
     calendar_id: str,
     calendar_name: str,
+    visibility: str,
     window: MatchingWindow,
 ) -> bytes:
+    try:
+        ical_class = VISIBILITY_CLASSES[visibility]
+    except KeyError as error:
+        raise ValueError("unsupported calendar visibility") from error
     calendar = Calendar()
     calendar.add("prodid", "-//ContextualWisdomLab//Saju CalDAV//KO")
     calendar.add("version", "2.0")
@@ -38,7 +49,7 @@ def build_icalendar(
     event.add("summary", calendar_name)
     event.add("description", "사용자가 설정한 맞춤 시간입니다.")
     event.add("transp", "TRANSPARENT")
-    event.add("class", "PRIVATE")
+    event.add("class", ical_class)
     calendar.add_component(event)
     return calendar.to_ical()
 
@@ -100,6 +111,7 @@ class CalDavPublisher:
         calendar_id: str,
         slug: str,
         calendar_name: str,
+        visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult:
         user_path = quote(self.username, safe="")
@@ -125,7 +137,7 @@ class CalDavPublisher:
             self._request(
                 "PUT",
                 f"{collection_url}{uid}.ics",
-                build_icalendar(calendar_id, calendar_name, window),
+                build_icalendar(calendar_id, calendar_name, visibility, window),
                 "text/calendar; charset=utf-8",
                 {200, 201, 204},
             )

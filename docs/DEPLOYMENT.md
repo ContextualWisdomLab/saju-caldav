@@ -25,7 +25,7 @@ curl --fail http://127.0.0.1:8000/health
 
 다음 스모크 테스트는 합성 출생 프로필과 중립적인 이름의 캘린더를 생성하고,
 서버가 계산한 오늘부터의 미리보기와 동기화를 수행한 뒤 CalDAV `PROPFIND`와
-`GET`으로 `.ics` 리소스를 다시 읽습니다. 이벤트가 `PRIVATE`이고 명식 전용
+`GET`으로 `.ics` 리소스를 다시 읽습니다. 기본 이벤트가 `PRIVATE`이고 명식 전용
 속성이 없는지도 확인합니다. 테스트 프로필과 CalDAV 컬렉션은 종료 시 삭제합니다.
 
 ```bash
@@ -60,6 +60,9 @@ uv run python scripts/private_regression.py
 
 Apple Calendar 등 자동 검색이 실패하면 운영자 콘솔에서 동기화 결과로 표시되는
 컬렉션 URL을 직접 사용합니다.
+
+캘린더의 공개 수준은 iCalendar `CLASS` 표시입니다. `PUBLIC`을 선택해도 Radicale
+컬렉션 자체가 익명 공개되지는 않으며 위 사용자 이름과 암호가 계속 필요합니다.
 
 ## 운영
 

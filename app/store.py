@@ -34,6 +34,8 @@ class Store:
                     birth_day INTEGER,
                     birth_time TEXT,
                     is_leap_month INTEGER NOT NULL DEFAULT 0,
+                    birth_city TEXT,
+                    birth_city_name TEXT,
                     gender TEXT NOT NULL,
                     timezone TEXT NOT NULL,
                     time_mode TEXT NOT NULL,
@@ -46,32 +48,45 @@ class Store:
                     profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
                     name TEXT NOT NULL,
                     slug TEXT NOT NULL UNIQUE,
+                    visibility TEXT NOT NULL DEFAULT 'private',
                     rule_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     last_synced_at TEXT
                 );
                 """
             )
-            columns = {
+            profile_columns = {
                 str(row[1]) for row in connection.execute("PRAGMA table_info(profiles)")
             }
-            if "birth_calendar" not in columns:
+            if "birth_calendar" not in profile_columns:
                 connection.execute(
                     "ALTER TABLE profiles ADD COLUMN birth_calendar "
                     "TEXT NOT NULL DEFAULT 'solar'"
                 )
-            if "birth_year" not in columns:
+            if "birth_year" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_year INTEGER")
-            if "birth_month" not in columns:
+            if "birth_month" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_month INTEGER")
-            if "birth_day" not in columns:
+            if "birth_day" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_day INTEGER")
-            if "birth_time" not in columns:
+            if "birth_time" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_time TEXT")
-            if "is_leap_month" not in columns:
+            if "is_leap_month" not in profile_columns:
                 connection.execute(
                     "ALTER TABLE profiles ADD COLUMN is_leap_month "
                     "INTEGER NOT NULL DEFAULT 0"
+                )
+            if "birth_city" not in profile_columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_city TEXT")
+            if "birth_city_name" not in profile_columns:
+                connection.execute("ALTER TABLE profiles ADD COLUMN birth_city_name TEXT")
+            calendar_columns = {
+                str(row[1]) for row in connection.execute("PRAGMA table_info(calendars)")
+            }
+            if "visibility" not in calendar_columns:
+                connection.execute(
+                    "ALTER TABLE calendars ADD COLUMN visibility "
+                    "TEXT NOT NULL DEFAULT 'private'"
                 )
             connection.execute(
                 """
@@ -116,6 +131,8 @@ class Store:
         birth_time: str,
         is_leap_month: bool,
         birth_local: datetime,
+        birth_city: str | None,
+        birth_city_name: str | None,
         gender: str,
         timezone: str,
         time_mode: str,
@@ -128,9 +145,9 @@ class Store:
                 """
                 INSERT INTO profiles
                     (id, name, birth_local, birth_calendar, birth_year, birth_month,
-                     birth_day, birth_time, is_leap_month, gender, timezone, time_mode,
-                     longitude, chart_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     birth_day, birth_time, is_leap_month, birth_city, birth_city_name,
+                     gender, timezone, time_mode, longitude, chart_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     profile_id,
@@ -142,6 +159,8 @@ class Store:
                     birth_day,
                     birth_time,
                     int(is_leap_month),
+                    birth_city,
+                    birth_city_name,
                     gender,
                     timezone,
                     time_mode,
@@ -178,20 +197,23 @@ class Store:
         profile_id: str,
         name: str,
         slug: str,
+        visibility: str,
         rule: dict[str, object],
     ) -> dict[str, object]:
         calendar_id = str(uuid4())
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO calendars (id, profile_id, name, slug, rule_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO calendars
+                    (id, profile_id, name, slug, visibility, rule_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     calendar_id,
                     profile_id,
                     name,
                     slug,
+                    visibility,
                     json.dumps(rule, ensure_ascii=False, separators=(",", ":")),
                     datetime.now(UTC).isoformat(),
                 ),

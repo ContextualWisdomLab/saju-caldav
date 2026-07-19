@@ -1,4 +1,4 @@
-const state = { profiles: [], calendars: [] };
+const state = { profiles: [], calendars: [], locations: [] };
 
 const stems = [..."甲乙丙丁戊己庚辛壬癸"];
 const branches = [..."子丑寅卯辰巳午未申酉戌亥"];
@@ -17,6 +17,11 @@ const branchLabels = {
   "酉": "유금 — 닭·쇠", "戌": "술토 — 개·흙", "亥": "해수 — 돼지·물",
 };
 const elementLabels = { "木": "나무", "火": "불", "土": "흙", "金": "쇠", "水": "물" };
+const visibilityLabels = {
+  private: "비공개",
+  confidential: "제한 공개",
+  public: "공개 표시",
+};
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -89,12 +94,44 @@ function renderProfiles() {
     return;
   }
   select.innerHTML = state.profiles
-    .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · 일지 ${escapeHtml(profile.chart.day.branch_korean)}, 시간 ${escapeHtml(profile.chart.hour.stem_korean)}</option>`)
+    .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.birth_city_name || profile.timezone)} · 일지 ${escapeHtml(profile.chart.day.branch_korean)}, 시간 ${escapeHtml(profile.chart.hour.stem_korean)}</option>`)
     .join("");
   select.value = state.profiles.some((profile) => profile.id === selected)
     ? selected
     : state.profiles.at(-1).id;
   showChart(state.profiles.find((profile) => profile.id === select.value));
+}
+
+function renderLocations() {
+  const select = $("#birth-city");
+  const selected = select.value || "seoul";
+  select.innerHTML = [
+    ...state.locations.map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.label)}</option>`),
+    '<option value="">목록에 없음 · 시간대 직접 지정</option>',
+  ].join("");
+  select.value = state.locations.some((location) => location.id === selected)
+    ? selected
+    : "";
+  updatePlaceFields();
+}
+
+function updatePlaceFields() {
+  const cityId = $("#birth-city").value;
+  const city = state.locations.find((location) => location.id === cityId);
+  const timezone = $("#timezone");
+  const trueSolar = $("#time-mode").value === "true_solar";
+  if (city) {
+    timezone.value = city.timezone;
+    timezone.readOnly = true;
+    $("#place-note").textContent = trueSolar
+      ? `${city.label}의 경도를 서버에서 자동 적용합니다. 위도와 좌표 입력은 필요하지 않습니다.`
+      : `${city.label}의 시간대 ${city.timezone}를 적용합니다. 표준시는 좌표를 사용하지 않습니다.`;
+    return;
+  }
+  timezone.readOnly = false;
+  $("#place-note").textContent = trueSolar
+    ? "진태양시는 경도를 자동 계산할 수 있도록 위 도시 목록에서 선택해야 합니다."
+    : "IANA 시간대(예: Asia/Seoul)를 직접 입력하세요. 좌표는 필요하지 않습니다.";
 }
 
 function predicateLabel(predicate) {
@@ -127,7 +164,7 @@ function renderCalendars() {
       return `<article class="calendar-card" data-calendar-id="${escapeHtml(calendar.id)}">
         <div>
           <h3>${escapeHtml(calendar.name)}</h3>
-          <p class="calendar-meta">/${escapeHtml(calendar.slug)}/ · ${escapeHtml(synced)}</p>
+          <p class="calendar-meta">/${escapeHtml(calendar.slug)}/ · ${escapeHtml(visibilityLabels[calendar.visibility] || calendar.visibility)} · ${escapeHtml(synced)}</p>
           <p class="calendar-rule">${escapeHtml(rule)}</p>
         </div>
         <div class="calendar-actions">
@@ -161,17 +198,21 @@ function updateValueSelect(fieldSelector, valueSelector, preferred) {
 }
 
 async function refresh() {
-  [state.profiles, state.calendars] = await Promise.all([
+  [state.profiles, state.calendars, state.locations] = await Promise.all([
     api("/api/profiles"),
     api("/api/calendars"),
+    api("/api/locations"),
   ]);
+  renderLocations();
   renderProfiles();
   renderCalendars();
 }
 
 $("#time-mode").addEventListener("change", (event) => {
-  $("#longitude-field").hidden = event.target.value !== "true_solar";
+  updatePlaceFields();
 });
+
+$("#birth-city").addEventListener("change", updatePlaceFields);
 
 $("#birth-calendar").addEventListener("change", (event) => {
   const lunar = event.target.value === "lunar";
@@ -205,7 +246,8 @@ $("#profile-form").addEventListener("submit", async (event) => {
     birth_month: Number(values.birth_month),
     birth_day: Number(values.birth_day),
     is_leap_month: event.currentTarget.elements.is_leap_month.checked,
-    longitude: values.time_mode === "true_solar" ? Number(values.longitude) : null,
+    birth_city: values.birth_city || null,
+    longitude: null,
   };
   try {
     const profile = await api("/api/profiles", {
@@ -231,6 +273,7 @@ $("#calendar-form").addEventListener("submit", async (event) => {
     profile_id: values.profile_id,
     name: values.name,
     slug: values.slug,
+    visibility: values.visibility,
     rule: {
       logic: values.logic,
       predicates: [

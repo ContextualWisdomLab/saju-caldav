@@ -42,6 +42,11 @@ input[type="checkbox"] {
   accent-color: var(--vermilion);
 }
 
+input[readonly] {
+  background: color-mix(in srgb, var(--paper) 72%, white);
+  color: var(--muted);
+}
+
 button,
 select {
   cursor: pointer;
