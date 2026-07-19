@@ -7,9 +7,10 @@ yet publishing versioned release lines.
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities through the repository's private
-GitHub security-advisory channel. Do not open a public issue with credentials,
-birth data, calendar contents, deployment addresses, or exploit details.
+Please report suspected vulnerabilities through the repository's
+[private GitHub security-advisory channel](https://github.com/ContextualWisdomLab/saju-caldav/security/advisories/new).
+Do not open a public issue with credentials, birth data, calendar contents,
+deployment addresses, or exploit details.
 
 Include the affected commit, a minimal reproduction, expected impact, and any
 suggested mitigation. Maintainers will acknowledge a complete report within
