@@ -1,0 +1,58 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      APP_USERNAME: ${APP_USERNAME:-operator}
+      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD}
+      SAJU_DB_PATH: /data/app/saju.db
+      CALDAV_BASE_URL: http://radicale:5232
+      CALDAV_USERNAME: ${CALDAV_USERNAME:-caluser}
+      CALDAV_PASSWORD: ${CALDAV_PASSWORD:?set CALDAV_PASSWORD}
+    ports:
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8000}:8000"
+    volumes:
+      - app-data:/data/app
+    depends_on:
+      radicale:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  radicale:
+    build: .
+    restart: unless-stopped
+    command: ["python", "scripts/run_radicale.py"]
+    environment:
+      CALDAV_USERNAME: ${CALDAV_USERNAME:-caluser}
+      CALDAV_PASSWORD: ${CALDAV_PASSWORD:?set CALDAV_PASSWORD}
+    ports:
+      - "${CALDAV_BIND:-0.0.0.0}:${CALDAV_PORT:-5232}:5232"
+    volumes:
+      - radicale-data:/data/radicale
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5232), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  app-data:
+  radicale-data:
