@@ -1,0 +1,71 @@
+# 배포와 CalDAV 연결
+
+## 요구 사항
+
+- Docker Compose 또는 Podman Compose
+- 웹용 포트 기본 `8000`, CalDAV용 포트 기본 `5232`
+- 외부 접근 시 TLS 역방향 프록시 또는 VPN
+
+## 시작
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+`.env`에서 웹과 CalDAV 암호를 서로 다른 24자 이상의 임의 값으로 바꿉니다.
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl --fail http://127.0.0.1:8000/health
+```
+
+## 종단간 검증
+
+다음 스모크 테스트는 회귀용 출생 프로필과 캘린더를 생성하고, 미리보기와
+동기화를 수행한 뒤 CalDAV `PROPFIND`로 `.ics` 리소스를 다시 읽습니다. 테스트
+프로필과 CalDAV 컬렉션은 종료 시 삭제합니다.
+
+```bash
+set -a
+. ./.env
+set +a
+uv run python scripts/acceptance_smoke.py
+```
+
+성공 표식은 다음과 같습니다.
+
+```text
+SAJU_CALDAV_ACCEPTANCE_OK event_count=1 day_branch=亥 hour_stem=壬
+```
+
+## 캘린더 앱 연결
+
+- 서버 주소: `https://<host>/` 또는 VPN 안의 `http://<host>:5232/`
+- 사용자 이름: `CALDAV_USERNAME`
+- 암호: `CALDAV_PASSWORD`
+- 직접 컬렉션 URL: `.../<CALDAV_USERNAME>/<calendar-slug>/`
+
+Apple Calendar 등 자동 검색이 실패하면 운영자 콘솔에서 동기화 결과로 표시되는
+컬렉션 URL을 직접 사용합니다.
+
+## 운영
+
+- 백업: `app-data`와 `radicale-data` 이름 볼륨을 같은 시점에 백업합니다.
+- 복구: 서비스를 내린 뒤 두 볼륨을 복원하고 다시 시작합니다.
+- 암호 변경: `.env` 수정 후 `docker compose up -d --force-recreate`를 실행합니다.
+  Radicale의 bcrypt 파일은 시작할 때 새 암호로 재생성됩니다.
+- 로그에는 출생 데이터나 암호를 출력하지 않습니다.
+- 인터넷에 포트를 직접 노출하지 마십시오. Basic 인증은 TLS 없이는 자격 증명을
+  보호하지 못합니다.
+
+## 원격 호스트 예시
+
+```bash
+git clone https://github.com/ContextualWisdomLab/saju-caldav.git
+cd saju-caldav
+cp .env.example .env
+# 암호 설정 후
+docker compose up -d --build
+```

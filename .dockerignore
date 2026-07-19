@@ -1,0 +1,13 @@
+.git
+.github
+.codegraph
+.venv
+.worktrees
+__pycache__
+.pytest_cache
+.ruff_cache
+data
+docs
+tests
+*.db
+.env
