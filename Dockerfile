@@ -6,11 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp
 
 WORKDIR /srv/saju-caldav
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock requirements.lock README.md ./
 COPY app ./app
 COPY radicale ./radicale
 COPY scripts ./scripts
-RUN python -m pip install --no-cache-dir . \
+RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock \
     && mkdir -p /data/app /data/radicale \
     && chown -R 10001:10001 /srv/saju-caldav /data
 

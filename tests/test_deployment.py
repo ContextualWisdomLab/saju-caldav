@@ -35,6 +35,8 @@ def test_container_runs_unprivileged_and_compose_has_no_literal_secrets() -> Non
 
     assert "USER 10001:10001" in dockerfile
     assert "apt-get" not in dockerfile
+    assert "--require-hashes -r requirements.lock" in dockerfile
+    assert "pip install --no-cache-dir ." not in dockerfile
     assert "services:" in compose
     assert "web:" in compose
     assert "radicale:" in compose
