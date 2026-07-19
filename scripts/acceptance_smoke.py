@@ -11,6 +11,8 @@ from xml.etree import ElementTree
 
 import httpx
 
+HTTP_TIMEOUT_SECONDS = float(os.environ.get("SMOKE_HTTP_TIMEOUT_SECONDS", "120"))
+
 
 def request(
     method: str,
@@ -30,7 +32,7 @@ def request(
             **(headers or {}),
         },
         auth=(username, password),
-        timeout=20,
+        timeout=HTTP_TIMEOUT_SECONDS,
         follow_redirects=False,
     )
     return response.status_code, response.content
