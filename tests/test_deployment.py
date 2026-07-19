@@ -33,7 +33,8 @@ def test_container_runs_unprivileged_and_compose_has_no_literal_secrets() -> Non
     dockerfile = (ROOT / "Dockerfile").read_text()
     compose = (ROOT / "compose.yaml").read_text()
 
-    assert "USER saju" in dockerfile
+    assert "USER 10001:10001" in dockerfile
+    assert "apt-get" not in dockerfile
     assert "services:" in compose
     assert "web:" in compose
     assert "radicale:" in compose

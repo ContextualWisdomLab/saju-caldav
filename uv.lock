@@ -529,6 +529,7 @@ dependencies = [
     { name = "icalendar" },
     { name = "lunar-python" },
     { name = "radicale" },
+    { name = "tzdata" },
     { name = "uvicorn" },
 ]
 
@@ -546,6 +547,7 @@ requires-dist = [
     { name = "icalendar", specifier = "==7.2.0" },
     { name = "lunar-python", specifier = "==1.4.8" },
     { name = "radicale", specifier = "==3.7.6" },
+    { name = "tzdata", specifier = "==2026.3" },
     { name = "uvicorn", specifier = "==0.41.0" },
 ]
 
