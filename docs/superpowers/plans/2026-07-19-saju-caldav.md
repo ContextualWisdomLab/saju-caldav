@@ -16,7 +16,7 @@
 - Preview and sync ranges are limited to 730 days.
 - No real birth data or credentials in the repository, CI, Figma, or logs.
 - Radicale owns CalDAV protocol behavior; do not implement a replacement server.
-- The acceptance chart is `1990-06-15 08:30 Asia/Seoul female → 庚午 / 壬午 / 辛亥 / 壬辰`.
+- The exact acceptance chart is supplied only through private environment variables.
 
 ---
 
@@ -38,10 +38,10 @@
 ```python
 def test_acceptance_birth_chart_is_xinhai_and_renchen():
     chart = calculate_chart(datetime(1990, 6, 15, 8, 30), "Asia/Seoul", "civil", None)
-    assert chart.day.ganzhi == "辛亥"
+    assert chart.day.ganzhi == expected_private_day
     assert chart.day.branch == "亥"
     assert chart.day.branch_element == "水"
-    assert chart.hour.ganzhi == "壬辰"
+    assert chart.hour.ganzhi == expected_private_hour
     assert chart.hour.stem == "壬"
     assert chart.hour.stem_element == "水"
 ```
@@ -67,7 +67,7 @@ def test_acceptance_birth_chart_is_xinhai_and_renchen():
 - [ ] **Step 1: Write a failing rule test using `day.branch = natal.day.branch` and `hour.stem = literal 壬`**
 - [ ] **Step 2: Run `uv run pytest tests/test_rules.py -q` and verify the missing module failure**
 - [ ] **Step 3: Implement allow-listed equality predicates and reject unknown fields, sources, and empty predicate sets**
-- [ ] **Step 4: Write failing event tests that require matched `辛亥`/`壬辰` windows, stable ordering, 730-day bounds, and split Zi segments**
+- [ ] **Step 4: Write failing event tests for private matched windows, stable ordering, 730-day bounds, and split Zi segments**
 - [ ] **Step 5: Implement solar-time segment enumeration and deterministic matching windows**
 - [ ] **Step 6: Run both test files and commit `feat: generate custom matching windows`**
 
@@ -165,4 +165,3 @@ def test_acceptance_birth_chart_is_xinhai_and_renchen():
 - [ ] **Step 5: Run the full verification suite, inspect `git diff --check` and `git status`, and commit `docs: finish Saju CalDAV delivery`**
 - [ ] **Step 6: Create `ContextualWisdomLab/saju-caldav`, push `main`, and verify current-head GitHub Actions**
 - [ ] **Step 7: Test batch SSH connectivity to `seongho@192.168.68.3`; when available, deploy under an explicit application directory and run the CalDAV smoke check**
-
