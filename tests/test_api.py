@@ -132,6 +132,8 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     assert preview.json()["count"] == 1
     assert preview.json()["events"][0]["start"] == "2000-01-01T11:00:00+09:00"
     assert preview.json()["events"][0]["hour_pillar"] == "戊午"
+    assert preview.json()["events"][0]["day_branch_korean"] == "오화"
+    assert preview.json()["events"][0]["hour_stem_korean"] == "무토"
 
     synced = client.post(
         f"/api/calendars/{calendar['id']}/sync",

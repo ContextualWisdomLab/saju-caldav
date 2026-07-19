@@ -302,6 +302,8 @@ def create_app(
                     "end": window.end.isoformat(),
                     "day_pillar": window.chart.day.ganzhi,
                     "hour_pillar": window.chart.hour.ganzhi,
+                    "day_branch_korean": window.chart.day.branch_korean,
+                    "hour_stem_korean": window.chart.hour.stem_korean,
                 }
                 for window in windows
             ],

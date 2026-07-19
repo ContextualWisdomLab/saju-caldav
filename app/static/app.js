@@ -271,7 +271,11 @@ $("#calendar-list").addEventListener("click", async (event) => {
       const preview = document.createElement("div");
       preview.className = "preview";
       const items = result.events.slice(0, 9)
-        .map((item) => `<li>${escapeHtml(new Date(item.start).toLocaleString("ko-KR"))} · ${escapeHtml(item.day_pillar)}/${escapeHtml(item.hour_pillar)}</li>`)
+        .map((item) => `<li>
+          ${escapeHtml(new Date(item.start).toLocaleString("ko-KR"))}
+          · 일지 ${escapeHtml(item.day_branch_korean)}, 시간 ${escapeHtml(item.hour_stem_korean)}
+          <details><summary>한자 표기</summary><span lang="zh-Hant">${escapeHtml(item.day_pillar)} / ${escapeHtml(item.hour_pillar)}</span></details>
+        </li>`)
         .join("");
       preview.innerHTML = `<strong>${result.count}개 시간을 찾았습니다.</strong><ol>${items}</ol>`;
       card.append(preview);
