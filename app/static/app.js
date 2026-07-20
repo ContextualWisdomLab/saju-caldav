@@ -230,11 +230,11 @@ $("#day-source").addEventListener("change", (event) => {
 });
 
 $("#day-field").addEventListener("change", () => {
-  updateValueSelect("#day-field", "#day-value", "亥");
+  updateValueSelect("#day-field", "#day-value");
 });
 
 $("#hour-field").addEventListener("change", () => {
-  updateValueSelect("#hour-field", "#hour-value", "壬");
+  updateValueSelect("#hour-field", "#hour-value");
 });
 
 $("#profile-form").addEventListener("submit", async (event) => {
