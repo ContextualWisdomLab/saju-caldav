@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -290,6 +291,26 @@ def test_omitted_range_keeps_only_ongoing_and_future_windows(
     published_windows = publisher.calls[0]["windows"]
     assert published_windows[0].start.isoformat() == "2026-07-19T11:00:00+09:00"
     assert all(window.end > seoul_now for window in published_windows)
+
+
+def test_invalid_stored_timezone_is_reported_as_input_error(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    with sqlite3.connect(tmp_path / "saju.db") as connection:
+        connection.execute(
+            "UPDATE profiles SET timezone = ? WHERE id = ?",
+            ("Mars/Olympus", profile["id"]),
+        )
+
+    response = client.post(
+        f"/api/calendars/{calendar['id']}/preview",
+        auth=_auth(),
+        json={"start_date": "2026-07-19", "end_date": "2026-07-19"},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "저장된 시간대 정보를 사용할 수 없습니다"}
 
 
 def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:

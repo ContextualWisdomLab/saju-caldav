@@ -8,7 +8,7 @@ import sqlite3
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -87,10 +87,9 @@ def _now(zone: ZoneInfo) -> datetime:
 
 def _resolve_date_range(
     requested: DateRange,
-    timezone: str,
+    zone: ZoneInfo,
     now: datetime | None = None,
 ) -> tuple[date, date]:
-    zone = ZoneInfo(timezone)
     current = now or _now(zone)
     start = requested.start_date or current.astimezone(zone).date()
     end = requested.end_date or start + timedelta(days=365)
@@ -143,6 +142,10 @@ def _calendar_context(
     try:
         rule = validate_rule(dict(calendar["rule"]))
         natal = _profile_chart(profile)
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422, detail="저장된 시간대 정보를 사용할 수 없습니다"
+        ) from error
     except (TypeError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return calendar, profile, rule, natal
@@ -158,7 +161,7 @@ def _windows(
         timezone = str(profile["timezone"])
         zone = ZoneInfo(timezone)
         current = _now(zone)
-        start_date, end_date = _resolve_date_range(requested, timezone, current)
+        start_date, end_date = _resolve_date_range(requested, zone, current)
         windows = generate_windows(
             rule,
             natal,
@@ -170,6 +173,10 @@ def _windows(
         )
         if requested.start_date is None:
             windows = [window for window in windows if window.end > current]
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422, detail="저장된 시간대 정보를 사용할 수 없습니다"
+        ) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return calendar, windows

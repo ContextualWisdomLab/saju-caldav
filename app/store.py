@@ -101,6 +101,10 @@ class Store:
                         birth_day, CAST(substr(birth_local, 9, 2) AS INTEGER)
                     ),
                     birth_time = COALESCE(birth_time, substr(birth_local, 12))
+                WHERE birth_year IS NULL
+                   OR birth_month IS NULL
+                   OR birth_day IS NULL
+                   OR birth_time IS NULL
                 """
             )
 

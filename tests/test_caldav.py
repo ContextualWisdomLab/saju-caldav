@@ -5,6 +5,7 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import ClassVar
 
+import httpx
 import pytest
 from icalendar import Calendar
 
@@ -17,6 +18,41 @@ from app.saju import calculate_chart
 def test_publisher_rejects_non_http_caldav_url() -> None:
     with pytest.raises(ValueError, match="http or https"):
         CalDavPublisher("file:///tmp/calendar", "caluser", "secret")
+
+
+def test_publisher_accepts_base_path_and_describes_url_contract() -> None:
+    publisher = CalDavPublisher("https://example.com/caldav", "caluser", "secret")
+
+    assert publisher.base_url == "https://example.com/caldav"
+    with pytest.raises(ValueError, match="without credentials, query, or fragment"):
+        CalDavPublisher("https://example.com/caldav?token=hidden", "caluser", "secret")
+
+
+def test_request_error_reports_sanitized_reason(monkeypatch) -> None:
+    publisher = CalDavPublisher(
+        "https://example.com/caldav", "caluser", "password-value"
+    )
+
+    def fail_request(*args, **kwargs):
+        del args, kwargs
+        raise httpx.ConnectError("dial failed for caluser with password-value")
+
+    monkeypatch.setattr(httpx, "request", fail_request)
+
+    with pytest.raises(RuntimeError) as captured:
+        publisher.sync(
+            "calendar-1",
+            "my-custom-hours",
+            "나의 맞춤 시간",
+            "private",
+            [],
+        )
+
+    message = str(captured.value)
+    assert "ConnectError" in message
+    assert "dial failed" in message
+    assert "caluser" not in message
+    assert "password-value" not in message
 
 
 def _public_window():

@@ -101,6 +101,16 @@ def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> No
 
     store = Store(database)
     store.initialize()
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TRIGGER reject_redundant_profile_backfill
+            BEFORE UPDATE ON profiles
+            BEGIN
+                SELECT RAISE(FAIL, 'fully backfilled profiles must not be updated');
+            END
+            """
+        )
     store.initialize()
 
     profile = store.get_profile("legacy")

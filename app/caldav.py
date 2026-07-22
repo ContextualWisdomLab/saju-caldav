@@ -72,7 +72,10 @@ class CalDavPublisher:
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("CalDAV base URL must be an http or https origin")
+            raise ValueError(
+                "CalDAV base URL must be an http or https URL without credentials, "
+                "query, or fragment"
+            )
         self.base_url = normalized_url
         self.username = username
         self.password = password
@@ -100,7 +103,16 @@ class CalDavPublisher:
                 follow_redirects=False,
             )
         except httpx.RequestError as error:
-            raise RuntimeError(f"CalDAV {method} connection failed") from error
+            summary = " ".join(str(error).split())
+            for sensitive in (self.username, self.password):
+                if sensitive:
+                    summary = summary.replace(sensitive, "<redacted>")
+            reason = type(error).__name__
+            if summary:
+                reason = f"{reason}: {summary[:240]}"
+            raise RuntimeError(
+                f"CalDAV {method} connection failed ({reason})"
+            ) from error
         status = response.status_code
         if status not in accepted:
             raise RuntimeError(f"CalDAV {method} returned unexpected HTTP {status}")
