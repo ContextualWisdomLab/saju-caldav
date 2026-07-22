@@ -85,9 +85,14 @@ def _now(zone: ZoneInfo) -> datetime:
     return datetime.now(zone)
 
 
-def _resolve_date_range(requested: DateRange, timezone: str) -> tuple[date, date]:
+def _resolve_date_range(
+    requested: DateRange,
+    timezone: str,
+    now: datetime | None = None,
+) -> tuple[date, date]:
     zone = ZoneInfo(timezone)
-    start = requested.start_date or _now(zone).date()
+    current = now or _now(zone)
+    start = requested.start_date or current.astimezone(zone).date()
     end = requested.end_date or start + timedelta(days=365)
     return start, end
 
@@ -150,16 +155,21 @@ def _windows(
 ) -> tuple[dict[str, object], list[MatchingWindow]]:
     calendar, profile, rule, natal = _calendar_context(store, calendar_id)
     try:
-        start_date, end_date = _resolve_date_range(requested, str(profile["timezone"]))
+        timezone = str(profile["timezone"])
+        zone = ZoneInfo(timezone)
+        current = _now(zone)
+        start_date, end_date = _resolve_date_range(requested, timezone, current)
         windows = generate_windows(
             rule,
             natal,
             start_date,
             end_date,
-            str(profile["timezone"]),
+            timezone,
             str(profile["time_mode"]),
             float(profile["longitude"]) if profile["longitude"] is not None else None,
         )
+        if requested.start_date is None:
+            windows = [window for window in windows if window.end > current]
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return calendar, windows
