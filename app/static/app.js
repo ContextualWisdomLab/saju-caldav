@@ -104,7 +104,7 @@ function renderProfiles() {
 
 function renderLocations() {
   const select = $("#birth-city");
-  const selected = select.value || "seoul";
+  const selected = select.value;
   select.innerHTML = [
     ...state.locations.map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.label)}</option>`),
     '<option value="">목록에 없음 · 시간대 직접 지정</option>',
