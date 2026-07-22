@@ -34,7 +34,11 @@ def build_icalendar(
     try:
         ical_class = VISIBILITY_CLASSES[visibility]
     except KeyError as error:
-        raise ValueError("unsupported calendar visibility") from error
+        allowed = ", ".join(VISIBILITY_CLASSES)
+        raise ValueError(
+            f"지원하지 않는 캘린더 공개 수준: {visibility!r}; "
+            f"사용할 수 있는 값: {allowed}"
+        ) from error
     calendar = Calendar()
     calendar.add("prodid", "-//ContextualWisdomLab//Saju CalDAV//KO")
     calendar.add("version", "2.0")

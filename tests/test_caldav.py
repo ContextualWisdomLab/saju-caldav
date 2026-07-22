@@ -118,6 +118,15 @@ def test_build_icalendar_maps_user_visibility_to_rfc_class(
     assert str(event["DESCRIPTION"]) == "사용자가 설정한 맞춤 시간입니다."
 
 
+def test_build_icalendar_describes_invalid_visibility() -> None:
+    with pytest.raises(ValueError) as captured:
+        build_icalendar("calendar-1", "일정 공개 수준", "secret", _public_window())
+
+    message = str(captured.value)
+    assert "secret" in message
+    assert "private, confidential, public" in message
+
+
 class _Recorder(BaseHTTPRequestHandler):
     requests: ClassVar[list[tuple[str, str, bytes]]] = []
 

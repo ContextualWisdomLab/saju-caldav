@@ -157,7 +157,7 @@ the public internet.
   "birth_day": 1,
   "birth_time": "08:30:00",
   "is_leap_month": false,
-  "normalized_birth_local": "2000-02-05T08:30:00",
+  "birth_local": "2000-02-05T08:30:00",
   "gender": "unspecified",
   "timezone": "Asia/Seoul",
   "time_mode": "civil",

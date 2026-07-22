@@ -274,6 +274,10 @@ def create_app(
                 requested.time_mode,
                 place.longitude,
             )
+        except ZoneInfoNotFoundError as error:
+            raise HTTPException(
+                status_code=422, detail="입력한 시간대 정보를 사용할 수 없습니다"
+            ) from error
         except (ValueError, OSError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return metadata_store.create_profile(
@@ -355,6 +359,8 @@ def create_app(
                 str(calendar["visibility"]),
                 windows,
             )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
         except RuntimeError as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
         metadata_store.mark_synced(calendar_id)

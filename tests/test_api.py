@@ -15,6 +15,11 @@ class RecordingPublisher:
         self.calls: list[dict[str, object]] = []
 
     def sync(self, calendar_id, slug, calendar_name, visibility, windows):
+        if visibility not in {"private", "confidential", "public"}:
+            raise ValueError(
+                f"지원하지 않는 공개 수준: {visibility!r}; "
+                "사용할 수 있는 값: private, confidential, public"
+            )
         self.calls.append(
             {
                 "calendar_id": calendar_id,
@@ -225,6 +230,31 @@ def test_lunar_profile_keeps_original_input_and_normalizes_birth_time(tmp_path: 
     assert profile["birth_local"] == "2024-02-10T08:30:00"
 
 
+def test_invalid_profile_timezone_is_reported_as_input_error(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "잘못된 시간대 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 1,
+            "birth_time": "12:15:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "timezone": "Mars/Olympus",
+            "time_mode": "civil",
+            "longitude": None,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "입력한 시간대 정보를 사용할 수 없습니다"}
+
+
 def test_omitted_range_keeps_only_ongoing_and_future_windows(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -311,6 +341,28 @@ def test_invalid_stored_timezone_is_reported_as_input_error(tmp_path: Path) -> N
 
     assert response.status_code == 422
     assert response.json() == {"detail": "저장된 시간대 정보를 사용할 수 없습니다"}
+
+
+def test_invalid_stored_visibility_is_reported_as_input_error(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    with sqlite3.connect(tmp_path / "saju.db") as connection:
+        connection.execute(
+            "UPDATE calendars SET visibility = ? WHERE id = ?",
+            ("secret", calendar["id"]),
+        )
+
+    response = client.post(
+        f"/api/calendars/{calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "secret" in detail
+    assert "private, confidential, public" in detail
 
 
 def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:
