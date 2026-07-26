@@ -20,23 +20,267 @@
 
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">Four Pillars → CalDAV</p>
-        <h1 id="hero-title">사주 명식을<br>시간 캘린더로</h1>
+        <div>
+          <p class="eyebrow">두 사람 → 좋은 시간 → CalDAV</p>
+          <h1 id="hero-title">
+            <span>둘이 좋은 날을</span>
+            <span>쉽게 찾으세요</span>
+          </h1>
+        </div>
         <div class="hero-copy">
           <p>
-            양력이나 한국 음력 출생 시각에서 네 기둥을 계산하고, 원하는
-            사주 조건이 다시 만나는 실제 날짜와 시간을 개인 CalDAV 캘린더로 발행합니다.
+            내 생일과 상대의 생일을 한 번에 넣으면 오늘부터 두 사람에게
+            고르게 어울리는 날짜와 시간을 찾아드립니다.
           </p>
           <p class="disclaimer">
-            문화·역법 참고 도구입니다. 운세의 과학적 타당성이나 인과관계를
-            주장하지 않습니다.
+            사주를 잘 몰라도 됩니다. 결과에는 점수와 선정 이유를 쉬운 한국어로
+            보여드리며, 한자는 보조 설명에만 사용합니다.
           </p>
         </div>
       </section>
 
-      <div class="rule" aria-hidden="true"></div>
+      <section class="pair-flow" aria-labelledby="pair-title">
+        <header class="flow-heading">
+          <div>
+            <p class="step">01 · 함께 보기</p>
+            <h2 id="pair-title">두 사람의 좋은 시간 찾기</h2>
+            <p>
+              저장된 사람을 불러오거나 두 사람의 출생 정보를 바로 입력하세요.
+              나머지는 자동으로 계산합니다.
+            </p>
+          </div>
+          <ol class="flow-steps" aria-label="사용 순서">
+            <li><b>1</b><span>두 사람 입력</span></li>
+            <li><b>2</b><span>좋은 시간 확인</span></li>
+            <li><b>3</b><span>캘린더 저장</span></li>
+          </ol>
+        </header>
 
-      <section class="workspace" aria-label="캘린더 제작 흐름">
+        <form id="pair-form" class="pair-form">
+          <div class="people-grid">
+            <fieldset class="person-card" data-person="primary">
+              <legend><span>나</span> 첫 번째 사람</legend>
+              <label class="field wide">
+                <span>저장된 사람 불러오기</span>
+                <select name="primary_profile_id" data-profile-choice="primary">
+                  <option value="">새로운 사람을 입력할게요</option>
+                </select>
+              </label>
+              <div class="new-person-fields form-grid" data-new-profile="primary">
+                <label class="field wide">
+                  <span>이름</span>
+                  <input name="primary_name" value="나" maxlength="80" required>
+                </label>
+                <label class="field">
+                  <span>양력 또는 음력</span>
+                  <select name="primary_birth_calendar" data-calendar-kind>
+                    <option value="solar" selected>양력</option>
+                    <option value="lunar">한국 음력</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>태어난 시간</span>
+                  <input name="primary_birth_time" type="time" value="12:00" step="60" required>
+                </label>
+                <div class="date-fields wide" role="group" aria-label="첫 번째 사람 생년월일">
+                  <label class="field">
+                    <span>태어난 해</span>
+                    <input name="primary_birth_year" type="number" min="1000" max="2050" value="2000" inputmode="numeric" required>
+                  </label>
+                  <label class="field">
+                    <span>월</span>
+                    <input name="primary_birth_month" type="number" min="1" max="12" value="1" inputmode="numeric" required>
+                  </label>
+                  <label class="field">
+                    <span>일</span>
+                    <input name="primary_birth_day" type="number" min="1" max="31" value="1" inputmode="numeric" required>
+                  </label>
+                </div>
+                <label class="check-field wide" data-leap-month hidden>
+                  <input name="primary_is_leap_month" type="checkbox">
+                  <span>윤달입니다</span>
+                </label>
+                <label class="field wide">
+                  <span>태어난 도시 <small>좌표 입력 없음</small></span>
+                  <select name="primary_birth_city" data-birth-city>
+                    <option value="seoul">대한민국 · 서울</option>
+                  </select>
+                </label>
+                <details class="advanced-settings wide">
+                  <summary>성별·시간 기준 설정</summary>
+                  <div class="advanced-grid">
+                    <label class="field">
+                      <span>성별 <small>기록용</small></span>
+                      <select name="primary_gender">
+                        <option value="female">여성</option>
+                        <option value="male">남성</option>
+                        <option value="unspecified" selected>미지정</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>시간 기준</span>
+                      <select name="primary_time_mode" data-time-mode>
+                        <option value="civil" selected>공식 표준시 · 기본</option>
+                        <option value="true_solar">진태양시 · 도시 경도 자동</option>
+                      </select>
+                    </label>
+                    <label class="field wide">
+                      <span>국가·지역 시간대</span>
+                      <input name="primary_timezone" value="Asia/Seoul" data-timezone readonly required>
+                    </label>
+                  </div>
+                  <p class="field-note" data-place-note>
+                    선택한 도시의 시간대를 자동 적용합니다.
+                  </p>
+                </details>
+              </div>
+            </fieldset>
+
+            <fieldset class="person-card" data-person="secondary">
+              <legend><span>상대</span> 두 번째 사람</legend>
+              <label class="field wide">
+                <span>저장된 사람 불러오기</span>
+                <select name="secondary_profile_id" data-profile-choice="secondary">
+                  <option value="">새로운 사람을 입력할게요</option>
+                </select>
+              </label>
+              <div class="new-person-fields form-grid" data-new-profile="secondary">
+                <label class="field wide">
+                  <span>이름</span>
+                  <input name="secondary_name" value="상대" maxlength="80" required>
+                </label>
+                <label class="field">
+                  <span>양력 또는 음력</span>
+                  <select name="secondary_birth_calendar" data-calendar-kind>
+                    <option value="solar" selected>양력</option>
+                    <option value="lunar">한국 음력</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>태어난 시간</span>
+                  <input name="secondary_birth_time" type="time" value="12:00" step="60" required>
+                </label>
+                <div class="date-fields wide" role="group" aria-label="두 번째 사람 생년월일">
+                  <label class="field">
+                    <span>태어난 해</span>
+                    <input name="secondary_birth_year" type="number" min="1000" max="2050" value="2000" inputmode="numeric" required>
+                  </label>
+                  <label class="field">
+                    <span>월</span>
+                    <input name="secondary_birth_month" type="number" min="1" max="12" value="1" inputmode="numeric" required>
+                  </label>
+                  <label class="field">
+                    <span>일</span>
+                    <input name="secondary_birth_day" type="number" min="1" max="31" value="2" inputmode="numeric" required>
+                  </label>
+                </div>
+                <label class="check-field wide" data-leap-month hidden>
+                  <input name="secondary_is_leap_month" type="checkbox">
+                  <span>윤달입니다</span>
+                </label>
+                <label class="field wide">
+                  <span>태어난 도시 <small>좌표 입력 없음</small></span>
+                  <select name="secondary_birth_city" data-birth-city>
+                    <option value="seoul">대한민국 · 서울</option>
+                  </select>
+                </label>
+                <details class="advanced-settings wide">
+                  <summary>성별·시간 기준 설정</summary>
+                  <div class="advanced-grid">
+                    <label class="field">
+                      <span>성별 <small>기록용</small></span>
+                      <select name="secondary_gender">
+                        <option value="female">여성</option>
+                        <option value="male">남성</option>
+                        <option value="unspecified" selected>미지정</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>시간 기준</span>
+                      <select name="secondary_time_mode" data-time-mode>
+                        <option value="civil" selected>공식 표준시 · 기본</option>
+                        <option value="true_solar">진태양시 · 도시 경도 자동</option>
+                      </select>
+                    </label>
+                    <label class="field wide">
+                      <span>국가·지역 시간대</span>
+                      <input name="secondary_timezone" value="Asia/Seoul" data-timezone readonly required>
+                    </label>
+                  </div>
+                  <p class="field-note" data-place-note>
+                    선택한 도시의 시간대를 자동 적용합니다.
+                  </p>
+                </details>
+              </div>
+            </fieldset>
+          </div>
+          <p class="privacy-note">
+            출생 정보는 이 운영자 전용 서버에만 저장되며 CalDAV 일정에는 포함되지 않습니다.
+          </p>
+          <button class="button primary pair-submit" type="submit">
+            둘이 좋은 날과 시간 찾기
+          </button>
+        </form>
+
+        <section id="compatibility-result" class="compatibility-result" aria-live="polite" hidden>
+          <header class="result-heading">
+            <div>
+              <p class="step">02 · 추천 결과</p>
+              <h2><span id="pair-names"></span>에게 좋은 시간</h2>
+            </div>
+            <div class="result-meta">
+              <p id="pair-result-count"></p>
+              <p id="pair-timezone"></p>
+            </div>
+          </header>
+          <ol id="compatibility-list" class="compatibility-list"></ol>
+          <details class="method-note">
+            <summary>이 결과를 고른 기준</summary>
+            <p>
+              두 사람의 일지를 기준으로 날짜와 시간의 육합·삼합 계열을 더하고
+              충 관계는 제외합니다. 한쪽만 높은 후보가 앞서지 않도록 두 사람 중
+              낮은 점수에 더 큰 비중을 둡니다. 문화적 참고 순위이며 미래를
+              예측하거나 관계의 좋고 나쁨을 판정하지 않습니다.
+            </p>
+          </details>
+
+          <form id="compatibility-calendar-form" class="calendar-save-form">
+            <input name="primary_profile_id" type="hidden">
+            <input name="secondary_profile_id" type="hidden">
+            <label class="field">
+              <span>캘린더 이름</span>
+              <input name="name" value="둘이 좋은 시간" maxlength="100" required>
+            </label>
+            <label class="field">
+              <span>CalDAV 주소 이름</span>
+              <input name="slug" value="good-time-together" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
+            </label>
+            <label class="field">
+              <span>공개 수준</span>
+              <select name="visibility">
+                <option value="private" selected>비공개 · 기본</option>
+                <option value="confidential">제한 공개</option>
+                <option value="public">공개 표시</option>
+              </select>
+            </label>
+            <button class="button primary" type="submit">
+              이 결과를 CalDAV 캘린더로 저장
+            </button>
+          </form>
+        </section>
+      </section>
+
+      <details class="expert-workspace">
+        <summary>
+          <span>고급 기능</span>
+          명식과 조건을 직접 골라 캘린더 만들기
+        </summary>
+        <p class="expert-intro">
+          일주·시주·오행 조건을 직접 지정하려는 사용자만 펼쳐서 사용하세요.
+        </p>
+        <div class="rule" aria-hidden="true"></div>
+
+      <section class="workspace" aria-label="고급 캘린더 제작 흐름">
         <article class="panel profile-panel">
           <header class="panel-heading">
             <p class="step">01 · 명식</p>
@@ -214,11 +458,12 @@
           </form>
         </article>
       </section>
+      </details>
 
       <section class="library" aria-labelledby="library-title">
         <header class="library-heading">
           <div>
-            <p class="step">03 · 발행</p>
+            <p class="step">03 · 내 캘린더</p>
             <h2 id="library-title">내 캘린더 서가</h2>
           </div>
           <p>미리보기로 확인한 뒤 CalDAV에 동기화하세요.</p>

@@ -88,6 +88,15 @@ class Store:
                     "ALTER TABLE calendars ADD COLUMN visibility "
                     "TEXT NOT NULL DEFAULT 'private'"
                 )
+            if "kind" not in calendar_columns:
+                connection.execute(
+                    "ALTER TABLE calendars ADD COLUMN kind "
+                    "TEXT NOT NULL DEFAULT 'rule'"
+                )
+            if "secondary_profile_id" not in calendar_columns:
+                connection.execute(
+                    "ALTER TABLE calendars ADD COLUMN secondary_profile_id TEXT"
+                )
             connection.execute(
                 """
                 UPDATE profiles
@@ -192,6 +201,10 @@ class Store:
 
     def delete_profile(self, profile_id: str) -> bool:
         with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM calendars WHERE secondary_profile_id = ?",
+                (profile_id,),
+            )
             cursor = connection.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         return cursor.rowcount == 1
 
@@ -203,21 +216,26 @@ class Store:
         slug: str,
         visibility: str,
         rule: dict[str, object],
+        kind: str = "rule",
+        secondary_profile_id: str | None = None,
     ) -> dict[str, object]:
         calendar_id = str(uuid4())
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO calendars
-                    (id, profile_id, name, slug, visibility, rule_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, profile_id, secondary_profile_id, name, slug, visibility,
+                     kind, rule_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     calendar_id,
                     profile_id,
+                    secondary_profile_id,
                     name,
                     slug,
                     visibility,
+                    kind,
                     json.dumps(rule, ensure_ascii=False, separators=(",", ":")),
                     datetime.now(UTC).isoformat(),
                 ),

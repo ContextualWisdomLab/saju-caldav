@@ -2,7 +2,7 @@ from datetime import date, datetime, time
 
 import pytest
 
-from app.events import generate_windows
+from app.events import generate_windows, iter_chart_windows
 from app.rules import validate_rule
 from app.saju import calculate_chart
 
@@ -90,3 +90,35 @@ def test_generation_range_is_bounded() -> None:
             "civil",
             None,
         )
+
+
+@pytest.mark.parametrize(
+    ("time_mode", "longitude"),
+    [("civil", None), ("true_solar", 126.978)],
+)
+def test_optimized_window_charts_match_direct_midpoint_calculation(
+    time_mode: str,
+    longitude: float | None,
+) -> None:
+    windows = list(
+        iter_chart_windows(
+            date(2000, 1, 1),
+            date(2000, 1, 1),
+            "Asia/Seoul",
+            time_mode,
+            longitude,
+        )
+    )
+
+    for window in windows:
+        civil_midpoint = window.start.replace(tzinfo=None) + (
+            window.end.replace(tzinfo=None) - window.start.replace(tzinfo=None)
+        ) / 2
+        direct = calculate_chart(
+            civil_midpoint,
+            "Asia/Seoul",
+            time_mode,
+            longitude,
+        )
+        assert window.chart.day == direct.day
+        assert window.chart.hour == direct.hour
