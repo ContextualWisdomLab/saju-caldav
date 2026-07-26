@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "bcrypt==5.0.0",
-  "fastapi==0.139.2",
+  "fastapi==0.140.0",
   "httpx==0.28.1",
   "icalendar==7.2.0",
   "korean-lunar-calendar==0.4.0",
