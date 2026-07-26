@@ -59,7 +59,8 @@ class ProfileCreate(BaseModel):
     birth_year: int = Field(ge=1000, le=2050)
     birth_month: int = Field(ge=1, le=12)
     birth_day: int = Field(ge=1, le=31)
-    birth_time: time
+    birth_time: time | None = None
+    birth_time_known: bool = True
     is_leap_month: bool = False
     gender: Literal["female", "male", "unspecified"] = "unspecified"
     birth_city: str | None = Field(default=None, max_length=80)
@@ -368,6 +369,24 @@ def create_app(
 
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
     def create_profile(requested: ProfileCreate) -> dict[str, object]:
+        if requested.birth_time_known and requested.birth_time is None:
+            raise HTTPException(
+                status_code=422,
+                detail="태어난 시각을 입력하거나 ‘태어난 시각을 모릅니다’를 선택하세요",
+            )
+        if not requested.birth_time_known and requested.time_mode == "true_solar":
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "태어난 시각을 모르면 진태양시를 적용할 수 없습니다. "
+                    "공식 표준시를 선택하세요"
+                ),
+            )
+        calculation_time = (
+            requested.birth_time if requested.birth_time_known else time(12, 0)
+        )
+        if calculation_time is None:
+            raise RuntimeError("validated birth time is missing")
         try:
             birth_local = normalize_birth(
                 BirthInput(
@@ -375,7 +394,7 @@ def create_app(
                     year=requested.birth_year,
                     month=requested.birth_month,
                     day=requested.birth_day,
-                    at=requested.birth_time,
+                    at=calculation_time,
                     is_leap_month=requested.is_leap_month,
                 )
             )
@@ -397,13 +416,21 @@ def create_app(
             ) from error
         except (ValueError, OSError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+        chart_json = _chart_json(chart)
+        if not requested.birth_time_known:
+            chart_json["hour"] = None
         return metadata_store.create_profile(
             name=requested.name,
             birth_calendar=requested.birth_calendar,
             birth_year=requested.birth_year,
             birth_month=requested.birth_month,
             birth_day=requested.birth_day,
-            birth_time=requested.birth_time.isoformat(),
+            birth_time=(
+                requested.birth_time.isoformat()
+                if requested.birth_time_known and requested.birth_time is not None
+                else None
+            ),
+            birth_time_known=requested.birth_time_known,
             is_leap_month=requested.is_leap_month,
             birth_local=birth_local,
             birth_city=place.city_id,
@@ -412,7 +439,7 @@ def create_app(
             timezone=place.timezone,
             time_mode=requested.time_mode,
             longitude=place.longitude,
-            chart=_chart_json(chart),
+            chart=chart_json,
         )
 
     @api.delete("/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -426,10 +453,18 @@ def create_app(
 
     @api.post("/calendars", status_code=status.HTTP_201_CREATED)
     def create_calendar(requested: CalendarCreate) -> dict[str, object]:
-        if metadata_store.get_profile(requested.profile_id) is None:
+        profile = metadata_store.get_profile(requested.profile_id)
+        if profile is None:
             raise HTTPException(status_code=404, detail="profile not found")
         try:
-            validate_rule(requested.rule)
+            rule = validate_rule(requested.rule)
+            if not bool(profile["birth_time_known"]) and any(
+                predicate.source == "natal" and predicate.value.startswith("hour.")
+                for predicate in rule.predicates
+            ):
+                raise ValueError(
+                    "태어난 시각을 모르는 프로필은 출생 시주 조건을 사용할 수 없습니다"
+                )
             return metadata_store.create_calendar(
                 profile_id=requested.profile_id,
                 name=requested.name,

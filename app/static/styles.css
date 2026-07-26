@@ -549,6 +549,27 @@ h2 {
   font-size: 13px;
 }
 
+.unknown-time-field {
+  min-height: 28px;
+  margin-top: -4px;
+}
+
+.unknown-time-note {
+  margin: -6px 0 8px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--moss);
+  background: color-mix(in srgb, var(--moss) 7%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.birth-time-unknown [data-time-input],
+.birth-time-unknown [data-time-mode] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .advanced-settings {
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
@@ -716,6 +737,14 @@ select:hover {
   margin-top: 4px;
   font-family: var(--serif);
   font-size: 24px;
+}
+
+.unknown-pillar {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.unknown-pillar strong {
+  color: var(--muted);
 }
 
 .acceptance-note {
