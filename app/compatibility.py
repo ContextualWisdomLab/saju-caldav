@@ -189,11 +189,11 @@ def generate_compatibility_candidates(
         candidate_date = candidate.window.start.date()
         previous = best_by_date.get(candidate_date)
         if previous is None or (
-            candidate.score,
-            -candidate.window.start.hour,
-        ) > (
-            previous.score,
-            -previous.window.start.hour,
+            candidate.score > previous.score
+            or (
+                candidate.score == previous.score
+                and candidate.window.start < previous.window.start
+            )
         ):
             best_by_date[candidate_date] = candidate
 

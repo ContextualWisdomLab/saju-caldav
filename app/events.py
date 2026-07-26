@@ -80,14 +80,25 @@ def iter_chart_windows(
     for day_offset in range((end_date - start_date).days + 1):
         calculation_date = start_date + timedelta(days=day_offset)
         midnight = datetime.combine(calculation_date, time.min)
-        calculation_noon = midnight + timedelta(hours=12)
-        civil_noon = _civil_from_calculation_time(
-            calculation_noon,
+        end_of_day = midnight + timedelta(days=1, microseconds=-1)
+        civil_midnight = _civil_from_calculation_time(
+            midnight,
             zone,
             time_mode,
             longitude,
         )
-        day_chart = calculate_chart(civil_noon, timezone, time_mode, longitude)
+        civil_end_of_day = _civil_from_calculation_time(
+            end_of_day,
+            zone,
+            time_mode,
+            longitude,
+        )
+        start_chart = calculate_chart(civil_midnight, timezone, time_mode, longitude)
+        end_chart = calculate_chart(civil_end_of_day, timezone, time_mode, longitude)
+        has_pillar_transition = (
+            start_chart.year != end_chart.year
+            or start_chart.month != end_chart.month
+        )
         for start_hour, end_hour in SEGMENTS:
             calculation_start = midnight + timedelta(hours=start_hour)
             calculation_end = midnight + timedelta(hours=end_hour)
@@ -98,12 +109,25 @@ def iter_chart_windows(
             calculation_midpoint = calculation_start + (
                 calculation_end - calculation_start
             ) / 2
-            current = Chart(
-                year=day_chart.year,
-                month=day_chart.month,
-                day=day_chart.day,
-                hour=_hour_pillar(day_chart.day.stem, calculation_midpoint.hour),
-                calculation_local=calculation_midpoint,
+            civil_midpoint = _civil_from_calculation_time(
+                calculation_midpoint,
+                zone,
+                time_mode,
+                longitude,
+            )
+            current = (
+                calculate_chart(civil_midpoint, timezone, time_mode, longitude)
+                if has_pillar_transition
+                else Chart(
+                    year=start_chart.year,
+                    month=start_chart.month,
+                    day=start_chart.day,
+                    hour=_hour_pillar(
+                        start_chart.day.stem,
+                        calculation_midpoint.hour,
+                    ),
+                    calculation_local=calculation_midpoint,
+                )
             )
             yield MatchingWindow(
                 start=civil_start.replace(tzinfo=zone),

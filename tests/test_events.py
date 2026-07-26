@@ -120,5 +120,27 @@ def test_optimized_window_charts_match_direct_midpoint_calculation(
             time_mode,
             longitude,
         )
+        assert window.chart.year == direct.year
+        assert window.chart.month == direct.month
         assert window.chart.day == direct.day
         assert window.chart.hour == direct.hour
+
+
+def test_window_charts_follow_an_intraday_solar_term_transition() -> None:
+    windows = list(
+        iter_chart_windows(
+            date(2024, 2, 4),
+            date(2024, 2, 4),
+            "Asia/Seoul",
+            "civil",
+            None,
+        )
+    )
+
+    before = next(window for window in windows if window.start.hour == 15)
+    after = next(window for window in windows if window.start.hour == 17)
+
+    assert before.chart.year.ganzhi == "癸卯"
+    assert before.chart.month.ganzhi == "乙丑"
+    assert after.chart.year.ganzhi == "甲辰"
+    assert after.chart.month.ganzhi == "丙寅"

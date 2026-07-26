@@ -1,5 +1,6 @@
 from datetime import date, datetime
 
+import app.compatibility as compatibility_module
 from app.compatibility import generate_compatibility_candidates, score_window
 from app.events import MatchingWindow
 from app.saju import Chart, Pillar, calculate_chart
@@ -142,3 +143,44 @@ def test_generator_applies_current_time_before_choosing_each_days_best() -> None
 
     assert upcoming
     assert all(candidate.window.end > current for candidate in upcoming)
+
+
+def test_generator_tie_breaks_with_the_full_start_time(monkeypatch) -> None:
+    chart = _chart("午")
+    candidate_chart = Chart(
+        year=chart.year,
+        month=chart.month,
+        day=chart.day,
+        hour=Pillar("己", "未"),
+        calculation_local=chart.calculation_local,
+    )
+    later = MatchingWindow(
+        start=datetime(2000, 1, 1, 11, 40),
+        end=datetime(2000, 1, 1, 13, 40),
+        chart=candidate_chart,
+    )
+    earlier = MatchingWindow(
+        start=datetime(2000, 1, 1, 11, 20),
+        end=datetime(2000, 1, 1, 13, 20),
+        chart=candidate_chart,
+    )
+    monkeypatch.setattr(
+        compatibility_module,
+        "iter_chart_windows",
+        lambda *args, **kwargs: iter((later, earlier)),
+    )
+
+    candidates = generate_compatibility_candidates(
+        chart,
+        chart,
+        "나",
+        "상대",
+        date(2000, 1, 1),
+        date(2000, 1, 1),
+        "Asia/Seoul",
+        "civil",
+        None,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].window.start == earlier.start
