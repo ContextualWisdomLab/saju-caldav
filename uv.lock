@@ -467,7 +467,7 @@ wheels = [
 
 [[package]]
 name = "radicale"
-version = "3.7.6"
+version = "3.7.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
@@ -476,9 +476,9 @@ dependencies = [
     { name = "requests" },
     { name = "vobject" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/ed/2fde9d7d73b438898f644b0705edf9a89ad4fd7b3609e0fe850c35103073/radicale-3.7.6.tar.gz", hash = "sha256:366e8337588267e9b7af189f3ac527c5f9a8d7dd6d2e3e5796b49933bc72609c", size = 256326, upload-time = "2026-07-07T06:39:52.637Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/86/82dbf4d633644c74b8618a0aab7a333ca06b811797ecf7a1801ec5621d74/radicale-3.7.7.tar.gz", hash = "sha256:46c58d0340bc70a1219a46ca9c6a88b97293b555e15d41d66110c5e236243b64", size = 257422, upload-time = "2026-07-19T15:09:43.013Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/de/346091ed3ca360cf0442e8cfa1105a8f932a2b8838ae268d0964e08a93cb/radicale-3.7.6-py3-none-any.whl", hash = "sha256:0be33dedc540bf24714c83a425a36cbfa524184a075f42d0d849019f95c080fb", size = 296855, upload-time = "2026-07-07T06:39:51.049Z" },
+    { url = "https://files.pythonhosted.org/packages/20/6e/9c21ba79ecb1cc3af2e355b7f55e21c8d3f0baf3b987de3175b6c4738655/radicale-3.7.7-py3-none-any.whl", hash = "sha256:4a706462e4ef9ebd19e954e969869455040d80fd279a0863d1101e009d30c224", size = 297383, upload-time = "2026-07-19T15:09:41.064Z" },
 ]
 
 [[package]]
@@ -549,7 +549,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "icalendar", specifier = "==7.2.0" },
     { name = "korean-lunar-calendar", specifier = "==0.4.0" },
-    { name = "radicale", specifier = "==3.7.6" },
+    { name = "radicale", specifier = "==3.7.7" },
     { name = "tzdata", specifier = "==2026.3" },
     { name = "uvicorn", specifier = "==0.41.0" },
 ]

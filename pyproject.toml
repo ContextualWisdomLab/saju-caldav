@@ -10,7 +10,7 @@ dependencies = [
   "httpx==0.28.1",
   "icalendar==7.2.0",
   "korean-lunar-calendar==0.4.0",
-  "radicale==3.7.6",
+  "radicale==3.7.7",
   "tzdata==2026.3",
   "uvicorn==0.41.0",
 ]
