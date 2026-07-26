@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.rules import Rule, matches
-from app.saju import Chart, _true_solar_time, calculate_chart
+from app.saju import Chart, _hour_pillar, _true_solar_time, calculate_chart
 
 SEGMENTS = ((0, 1),) + tuple((hour, hour + 2) for hour in range(1, 22, 2)) + ((23, 24),)
 
@@ -48,16 +49,56 @@ def generate_windows(
 ) -> list[MatchingWindow]:
     """Return matching local-time intervals, inclusive of both boundary dates."""
 
+    return [
+        window
+        for window in iter_chart_windows(
+            start_date,
+            end_date,
+            timezone,
+            time_mode,
+            longitude,
+        )
+        if matches(rule, natal=natal, current=window.chart)
+    ]
+
+
+def iter_chart_windows(
+    start_date: date,
+    end_date: date,
+    timezone: str,
+    time_mode: str,
+    longitude: float | None,
+) -> Iterator[MatchingWindow]:
+    """Yield every local double-hour window with its calculated chart."""
+
     if end_date < start_date:
         raise ValueError("end_date must not be before start_date")
     if (end_date - start_date).days + 1 > 730:
         raise ValueError("generation range must not exceed 730 days")
 
     zone = ZoneInfo(timezone)
-    windows: list[MatchingWindow] = []
     for day_offset in range((end_date - start_date).days + 1):
         calculation_date = start_date + timedelta(days=day_offset)
         midnight = datetime.combine(calculation_date, time.min)
+        end_of_day = midnight + timedelta(days=1, microseconds=-1)
+        civil_midnight = _civil_from_calculation_time(
+            midnight,
+            zone,
+            time_mode,
+            longitude,
+        )
+        civil_end_of_day = _civil_from_calculation_time(
+            end_of_day,
+            zone,
+            time_mode,
+            longitude,
+        )
+        start_chart = calculate_chart(civil_midnight, timezone, time_mode, longitude)
+        end_chart = calculate_chart(civil_end_of_day, timezone, time_mode, longitude)
+        has_pillar_transition = (
+            start_chart.year != end_chart.year
+            or start_chart.month != end_chart.month
+        )
         for start_hour, end_hour in SEGMENTS:
             calculation_start = midnight + timedelta(hours=start_hour)
             calculation_end = midnight + timedelta(hours=end_hour)
@@ -65,15 +106,35 @@ def generate_windows(
                 calculation_start, zone, time_mode, longitude
             )
             civil_end = _civil_from_calculation_time(calculation_end, zone, time_mode, longitude)
-            civil_midpoint = civil_start + (civil_end - civil_start) / 2
-            current = calculate_chart(civil_midpoint, timezone, time_mode, longitude)
-            if matches(rule, natal=natal, current=current):
-                windows.append(
-                    MatchingWindow(
-                        start=civil_start.replace(tzinfo=zone),
-                        end=civil_end.replace(tzinfo=zone),
-                        chart=current,
-                    )
+            calculation_midpoint = calculation_start + (
+                calculation_end - calculation_start
+            ) / 2
+            if has_pillar_transition:
+                civil_midpoint = _civil_from_calculation_time(
+                    calculation_midpoint,
+                    zone,
+                    time_mode,
+                    longitude,
                 )
-    return windows
-
+                current = calculate_chart(
+                    civil_midpoint,
+                    timezone,
+                    time_mode,
+                    longitude,
+                )
+            else:
+                current = Chart(
+                    year=start_chart.year,
+                    month=start_chart.month,
+                    day=start_chart.day,
+                    hour=_hour_pillar(
+                        start_chart.day.stem,
+                        calculation_midpoint.hour,
+                    ),
+                    calculation_local=calculation_midpoint,
+                )
+            yield MatchingWindow(
+                start=civil_start.replace(tzinfo=zone),
+                end=civil_end.replace(tzinfo=zone),
+                chart=current,
+            )
