@@ -1,4 +1,9 @@
-const state = { profiles: [], calendars: [], locations: [] };
+const state = {
+  profiles: [],
+  calendars: [],
+  locations: [],
+  compatibility: null,
+};
 
 const stems = [..."甲乙丙丁戊己庚辛壬癸"];
 const branches = [..."子丑寅卯辰巳午未申酉戌亥"];
@@ -63,6 +68,14 @@ function serializeForm(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function profileOption(profile, technical = false) {
+  const place = profile.birth_city_name || profile.timezone;
+  const detail = technical
+    ? ` · 일지 ${profile.chart.day.branch_korean}, 시간 ${profile.chart.hour.stem_korean}`
+    : "";
+  return `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(place)}${escapeHtml(detail)}</option>`;
+}
+
 function pillarMarkup(label, pillar) {
   return `<div class="pillar">
     <span>${escapeHtml(label)}</span>
@@ -93,26 +106,38 @@ function renderProfiles() {
     $("#chart-result").hidden = true;
     return;
   }
-  select.innerHTML = state.profiles
-    .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(profile.birth_city_name || profile.timezone)} · 일지 ${escapeHtml(profile.chart.day.branch_korean)}, 시간 ${escapeHtml(profile.chart.hour.stem_korean)}</option>`)
-    .join("");
+  select.innerHTML = state.profiles.map((profile) => profileOption(profile, true)).join("");
   select.value = state.profiles.some((profile) => profile.id === selected)
     ? selected
     : state.profiles.at(-1).id;
   showChart(state.profiles.find((profile) => profile.id === select.value));
+
+  document.querySelectorAll("[data-profile-choice]").forEach((choice) => {
+    const previous = choice.value;
+    choice.innerHTML = [
+      '<option value="">새로운 사람을 입력할게요</option>',
+      ...state.profiles.map((profile) => profileOption(profile)),
+    ].join("");
+    choice.value = state.profiles.some((profile) => profile.id === previous)
+      ? previous
+      : "";
+    toggleNewPersonFields(choice);
+  });
 }
 
 function renderLocations() {
-  const select = $("#birth-city");
-  const selected = select.value;
-  select.innerHTML = [
-    ...state.locations.map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.label)}</option>`),
-    '<option value="">목록에 없음 · 시간대 직접 지정</option>',
-  ].join("");
-  select.value = state.locations.some((location) => location.id === selected)
-    ? selected
-    : "";
+  document.querySelectorAll("#birth-city, [data-birth-city]").forEach((select) => {
+    const selected = select.value;
+    select.innerHTML = [
+      ...state.locations.map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.label)}</option>`),
+      '<option value="">목록에 없음 · 시간대 직접 지정</option>',
+    ].join("");
+    select.value = state.locations.some((location) => location.id === selected)
+      ? selected
+      : (state.locations[0]?.id || "");
+  });
   updatePlaceFields();
+  document.querySelectorAll("[data-person]").forEach(updatePairPlace);
 }
 
 function updatePlaceFields() {
@@ -124,7 +149,7 @@ function updatePlaceFields() {
     timezone.value = city.timezone;
     timezone.readOnly = true;
     $("#place-note").textContent = trueSolar
-      ? `${city.label}의 경도를 서버에서 자동 적용합니다. 위도와 좌표 입력은 필요하지 않습니다.`
+      ? `${city.label}의 대표 경도를 서버에서 자동 적용하므로 좌표를 직접 입력할 필요가 없습니다.`
       : `${city.label}의 시간대 ${city.timezone}를 적용합니다. 표준시는 좌표를 사용하지 않습니다.`;
     return;
   }
@@ -132,6 +157,36 @@ function updatePlaceFields() {
   $("#place-note").textContent = trueSolar
     ? "진태양시는 경도를 자동 계산할 수 있도록 위 도시 목록에서 선택해야 합니다."
     : "IANA 시간대(예: Asia/Seoul)를 직접 입력하세요. 좌표는 필요하지 않습니다.";
+}
+
+function toggleNewPersonFields(choice) {
+  const prefix = choice.dataset.profileChoice;
+  const fields = document.querySelector(`[data-new-profile="${prefix}"]`);
+  const creating = !choice.value;
+  fields.hidden = !creating;
+  fields.querySelectorAll("input, select").forEach((control) => {
+    control.disabled = !creating;
+  });
+}
+
+function updatePairPlace(personCard) {
+  const cityId = personCard.querySelector("[data-birth-city]").value;
+  const city = state.locations.find((location) => location.id === cityId);
+  const timezone = personCard.querySelector("[data-timezone]");
+  const trueSolar = personCard.querySelector("[data-time-mode]").value === "true_solar";
+  const note = personCard.querySelector("[data-place-note]");
+  if (city) {
+    timezone.value = city.timezone;
+    timezone.readOnly = true;
+    note.textContent = trueSolar
+      ? `${city.label}의 대표 경도를 자동 적용하므로 좌표를 직접 입력할 필요가 없습니다.`
+      : `${city.label}의 시간대 ${city.timezone}를 적용합니다.`;
+    return;
+  }
+  timezone.readOnly = false;
+  note.textContent = trueSolar
+    ? "진태양시는 위 도시 목록에서 선택해야 합니다."
+    : "IANA 시간대(예: Asia/Seoul)를 입력하세요. 좌표는 필요하지 않습니다.";
 }
 
 function predicateLabel(predicate) {
@@ -159,7 +214,11 @@ function renderCalendars() {
   }
   list.innerHTML = state.calendars
     .map((calendar) => {
-      const rule = calendar.rule.predicates.map(predicateLabel).join(calendar.rule.logic === "all" ? " 그리고 " : " 또는 ");
+      const primary = state.profiles.find((profile) => profile.id === calendar.profile_id);
+      const secondary = state.profiles.find((profile) => profile.id === calendar.secondary_profile_id);
+      const rule = calendar.kind === "compatibility"
+        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}에게 고르게 어울리는 시간`
+        : calendar.rule.predicates.map(predicateLabel).join(calendar.rule.logic === "all" ? " 그리고 " : " 또는 ");
       const synced = calendar.last_synced_at ? new Date(calendar.last_synced_at).toLocaleString("ko-KR") : "아직 동기화하지 않음";
       return `<article class="calendar-card" data-calendar-id="${escapeHtml(calendar.id)}">
         <div>
@@ -197,6 +256,94 @@ function updateValueSelect(fieldSelector, valueSelector, preferred) {
     .join("");
 }
 
+function pairProfilePayload(form, prefix) {
+  const values = serializeForm(form);
+  const leapMonth = form.elements.namedItem(`${prefix}_is_leap_month`);
+  return {
+    name: values[`${prefix}_name`],
+    birth_calendar: values[`${prefix}_birth_calendar`],
+    birth_year: Number(values[`${prefix}_birth_year`]),
+    birth_month: Number(values[`${prefix}_birth_month`]),
+    birth_day: Number(values[`${prefix}_birth_day`]),
+    birth_time: values[`${prefix}_birth_time`],
+    is_leap_month: leapMonth.checked,
+    birth_city: values[`${prefix}_birth_city`] || null,
+    gender: values[`${prefix}_gender`],
+    timezone: values[`${prefix}_timezone`],
+    time_mode: values[`${prefix}_time_mode`],
+    longitude: null,
+  };
+}
+
+async function resolvePairProfile(form, prefix) {
+  const profileId = form.elements.namedItem(`${prefix}_profile_id`).value;
+  if (profileId) {
+    const profile = state.profiles.find((item) => item.id === profileId);
+    if (!profile) throw new Error("선택한 사람을 다시 불러오지 못했습니다.");
+    return profile;
+  }
+  return api("/api/profiles", {
+    method: "POST",
+    body: JSON.stringify(pairProfilePayload(form, prefix)),
+  });
+}
+
+function renderCompatibility(result, primary, secondary) {
+  state.compatibility = { result, primary, secondary };
+  $("#pair-names").textContent = `${primary.name} · ${secondary.name}`;
+  $("#pair-result-count").textContent = `${result.count}개의 가까운 후보를 찾았습니다.`;
+  $("#pair-timezone").textContent = `시간은 첫 번째 사람의 ${primary.timezone} 기준입니다.`;
+  const list = $("#compatibility-list");
+  if (!result.events.length) {
+    list.innerHTML = '<li class="empty-state">1년 안에서 추천 기준을 만족하는 시간을 찾지 못했습니다.</li>';
+  } else {
+    list.innerHTML = result.events.map((item) => {
+      const start = new Date(item.start);
+      const end = new Date(item.end);
+      const day = start.toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+        timeZone: primary.timezone,
+      });
+      const timeOptions = {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: primary.timezone,
+      };
+      const timeRange = `${start.toLocaleTimeString("ko-KR", timeOptions)}–${end.toLocaleTimeString("ko-KR", timeOptions)}`;
+      const reasons = item.reasons.slice(0, 3)
+        .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+        .join("");
+      return `<li class="compatibility-card">
+        <div class="candidate-when">
+          <time datetime="${escapeHtml(item.start)}">${escapeHtml(day)}</time>
+          <strong>${escapeHtml(timeRange)}</strong>
+        </div>
+        <div class="score-badge" aria-label="조화 점수 ${escapeHtml(item.score)}점">
+          <b>${escapeHtml(item.score)}</b><span>조화 점수</span>
+        </div>
+        <div class="candidate-copy">
+          <h3>${escapeHtml(item.label)}</h3>
+          <ul>${reasons}</ul>
+          <details>
+            <summary>사주 표기 보기</summary>
+            <span>일지 ${escapeHtml(item.day_branch_korean)} · 시간 ${escapeHtml(item.hour_branch_korean)}</span>
+            <small lang="zh-Hant">${escapeHtml(item.day_pillar)} / ${escapeHtml(item.hour_pillar)}</small>
+          </details>
+        </div>
+      </li>`;
+    }).join("");
+  }
+  const calendarForm = document.getElementById("compatibility-calendar-form");
+  calendarForm.elements.namedItem("primary_profile_id").value = primary.id;
+  calendarForm.elements.namedItem("secondary_profile_id").value = secondary.id;
+  calendarForm.elements.namedItem("name").value = "둘이 좋은 시간";
+  $("#compatibility-result").hidden = false;
+  $("#compatibility-result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function refresh() {
   [state.profiles, state.calendars, state.locations] = await Promise.all([
     api("/api/profiles"),
@@ -213,6 +360,25 @@ $("#time-mode").addEventListener("change", (event) => {
 });
 
 $("#birth-city").addEventListener("change", updatePlaceFields);
+
+$("#pair-form").addEventListener("change", (event) => {
+  const choice = event.target.closest("[data-profile-choice]");
+  if (choice) {
+    toggleNewPersonFields(choice);
+    return;
+  }
+  const personCard = event.target.closest("[data-person]");
+  if (!personCard) return;
+  if (event.target.matches("[data-calendar-kind]")) {
+    const lunar = event.target.value === "lunar";
+    const leap = personCard.querySelector("[data-leap-month]");
+    leap.hidden = !lunar;
+    if (!lunar) leap.querySelector("input").checked = false;
+  }
+  if (event.target.matches("[data-birth-city], [data-time-mode]")) {
+    updatePairPlace(personCard);
+  }
+});
 
 $("#birth-calendar").addEventListener("change", (event) => {
   const lunar = event.target.value === "lunar";
@@ -245,7 +411,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
     birth_year: Number(values.birth_year),
     birth_month: Number(values.birth_month),
     birth_day: Number(values.birth_day),
-    is_leap_month: event.currentTarget.elements.is_leap_month.checked,
+    is_leap_month: event.currentTarget.elements.namedItem("is_leap_month").checked,
     birth_city: values.birth_city || null,
     longitude: null,
   };
@@ -260,6 +426,66 @@ $("#profile-form").addEventListener("submit", async (event) => {
     notify(`‘${profile.name}’ 명식을 저장했습니다.`);
   } catch (error) {
     notify(`명식을 저장하지 못했습니다: ${error.message}`, true);
+  }
+});
+
+$("#pair-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = "두 사람의 시간을 계산하고 있습니다…";
+  try {
+    const primary = await resolvePairProfile(form, "primary");
+    const secondary = await resolvePairProfile(form, "secondary");
+    if (primary.id === secondary.id) {
+      throw new Error("서로 다른 두 사람을 선택하세요.");
+    }
+    const result = await api("/api/compatibility/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        primary_profile_id: primary.id,
+        secondary_profile_id: secondary.id,
+        limit: 12,
+      }),
+    });
+    await refresh();
+    const primaryChoice = $('[data-profile-choice="primary"]');
+    const secondaryChoice = $('[data-profile-choice="secondary"]');
+    primaryChoice.value = primary.id;
+    secondaryChoice.value = secondary.id;
+    toggleNewPersonFields(primaryChoice);
+    toggleNewPersonFields(secondaryChoice);
+    renderCompatibility(result, primary, secondary);
+    notify(`${primary.name} · ${secondary.name}의 가까운 좋은 시간을 찾았습니다.`);
+  } catch (error) {
+    notify(`좋은 시간을 찾지 못했습니다: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "둘이 좋은 날과 시간 찾기";
+  }
+});
+
+$("#compatibility-calendar-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const values = serializeForm(event.currentTarget);
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const calendar = await api("/api/compatibility/calendars", {
+      method: "POST",
+      body: JSON.stringify({
+        ...values,
+        limit: 36,
+      }),
+    });
+    await refresh();
+    notify(`‘${calendar.name}’ 캘린더를 저장했습니다. 아래에서 동기화할 수 있습니다.`);
+    $(".library").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    notify(`캘린더를 저장하지 못했습니다: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
   }
 });
 
@@ -313,11 +539,15 @@ $("#calendar-list").addEventListener("click", async (event) => {
       card.querySelector(".preview")?.remove();
       const preview = document.createElement("div");
       preview.className = "preview";
+      const primary = state.profiles.find((profile) => profile.id === calendar.profile_id);
+      const displayOptions = primary ? { timeZone: primary.timezone } : {};
       const items = result.events.slice(0, 9)
         .map((item) => `<li>
-          ${escapeHtml(new Date(item.start).toLocaleString("ko-KR"))}
-          · 일지 ${escapeHtml(item.day_branch_korean)}, 시간 ${escapeHtml(item.hour_stem_korean)}
-          <details><summary>한자 표기</summary><span lang="zh-Hant">${escapeHtml(item.day_pillar)} / ${escapeHtml(item.hour_pillar)}</span></details>
+          ${escapeHtml(new Date(item.start).toLocaleString("ko-KR", displayOptions))}
+          ${item.score
+            ? `· 조화 점수 ${escapeHtml(item.score)}점 · ${escapeHtml(item.label)}`
+            : `· 일지 ${escapeHtml(item.day_branch_korean)}, 시간 ${escapeHtml(item.hour_stem_korean)}`}
+          <details><summary>사주 표기</summary><span lang="zh-Hant">${escapeHtml(item.day_pillar)} / ${escapeHtml(item.hour_pillar)}</span></details>
         </li>`)
         .join("");
       preview.innerHTML = `<strong>${result.count}개 시간을 찾았습니다.</strong><ol>${items}</ol>`;

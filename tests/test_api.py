@@ -74,6 +74,29 @@ def _create_profile(client: TestClient) -> dict[str, object]:
     return response.json()
 
 
+def _create_secondary_profile(client: TestClient) -> dict[str, object]:
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "두 번째 공개 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 2,
+            "birth_time": "12:15:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "timezone": "Asia/Seoul",
+            "birth_city": "seoul",
+            "time_mode": "civil",
+            "longitude": None,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def _create_calendar(client: TestClient, profile_id: str) -> dict[str, object]:
     response = client.post(
         "/api/calendars",
@@ -116,8 +139,10 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert client.get("/").status_code == 401
     page = client.get("/", auth=_auth())
     assert page.status_code == 200
-    assert "사주 명식을" in page.text
-    assert "시간 캘린더로" in page.text
+    assert "두 사람의 좋은 시간 찾기" in page.text
+    assert "둘이 좋은 날과 시간 찾기" in page.text
+    assert "사주를 잘 몰라도 됩니다" in page.text
+    assert 'id="compatibility-result"' in page.text
     assert "출생 도시" in page.text
     assert 'name="longitude"' not in page.text
     assert 'name="visibility"' in page.text
@@ -165,6 +190,87 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     }
     assert publisher.calls[0]["slug"] == "my-custom-hours"
     assert publisher.calls[0]["visibility"] == "confidential"
+
+
+def test_two_person_preview_calendar_and_sync_are_plain_korean(
+    tmp_path: Path,
+) -> None:
+    client, publisher = _client(tmp_path)
+    primary = _create_profile(client)
+    secondary = _create_secondary_profile(client)
+
+    preview = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "start_date": "2000-01-01",
+            "end_date": "2000-01-31",
+            "limit": 8,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    payload = preview.json()
+    assert payload["method"] == "balanced_branch_harmony"
+    assert payload["primary_name"] == "공개 테스트 예시"
+    assert payload["secondary_name"] == "두 번째 공개 예시"
+    assert 1 <= payload["count"] <= 8
+    assert all(event["score"] >= 60 for event in payload["events"])
+    assert all(event["label"].endswith("시간") for event in payload["events"])
+    assert all(event["reasons"] for event in payload["events"])
+
+    created = client.post(
+        "/api/compatibility/calendars",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "name": "둘이 좋은 시간",
+            "slug": "good-time-together",
+            "visibility": "private",
+            "limit": 8,
+        },
+    )
+    assert created.status_code == 201, created.text
+    calendar = created.json()
+    assert calendar["kind"] == "compatibility"
+    assert calendar["secondary_profile_id"] == secondary["id"]
+
+    calendar_preview = client.post(
+        f"/api/calendars/{calendar['id']}/preview",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-31"},
+    )
+    assert calendar_preview.status_code == 200, calendar_preview.text
+    assert calendar_preview.json()["events"][0]["reasons"]
+
+    synced = client.post(
+        f"/api/calendars/{calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-31"},
+    )
+    assert synced.status_code == 200, synced.text
+    assert publisher.calls[-1]["calendar_name"] == "둘이 좋은 시간"
+    assert publisher.calls[-1]["visibility"] == "private"
+    assert synced.json()["event_count"] == len(publisher.calls[-1]["windows"])
+
+
+def test_two_person_flow_requires_distinct_profiles(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_profile(client)
+
+    response = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": profile["id"],
+            "secondary_profile_id": profile["id"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "서로 다른 두 사람의 프로필을 선택하세요"
 
 
 def test_city_automatically_supplies_timezone_and_true_solar_longitude(
