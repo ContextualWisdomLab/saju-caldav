@@ -70,9 +70,14 @@ function serializeForm(form) {
 
 function profileOption(profile, technical = false) {
   const place = profile.birth_city_name || profile.timezone;
+  const knownTime = profile.birth_time_known !== false;
   const detail = technical
-    ? ` · 일지 ${profile.chart.day.branch_korean}, 시간 ${profile.chart.hour.stem_korean}`
-    : "";
+    ? (
+      knownTime
+        ? ` · 일지 ${profile.chart.day.branch_korean}, 시간 ${profile.chart.hour.stem_korean}`
+        : ` · 일지 ${profile.chart.day.branch_korean}, 시각 미상`
+    )
+    : (knownTime ? "" : " · 시각 미상");
   return `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · ${escapeHtml(place)}${escapeHtml(detail)}</option>`;
 }
 
@@ -85,16 +90,27 @@ function pillarMarkup(label, pillar) {
   </div>`;
 }
 
+function unknownHourPillarMarkup() {
+  return `<div class="pillar unknown-pillar">
+    <span>시주</span>
+    <strong>미확정</strong>
+    <small>태어난 시각을 몰라<br>임의로 계산하지 않습니다</small>
+  </div>`;
+}
+
 function showChart(profile) {
   const chart = profile.chart;
+  const knownTime = profile.birth_time_known !== false && chart.hour;
   $("#chart-profile-name").textContent = profile.name;
   $("#pillars").innerHTML = [
     pillarMarkup("년주", chart.year),
     pillarMarkup("월주", chart.month),
     pillarMarkup("일주", chart.day),
-    pillarMarkup("시주", chart.hour),
+    knownTime ? pillarMarkup("시주", chart.hour) : unknownHourPillarMarkup(),
   ].join("");
-  $("#acceptance-note").textContent = `일주의 지지는 ${chart.day.branch_korean}, 시주의 천간은 ${chart.hour.stem_korean}입니다.`;
+  $("#acceptance-note").textContent = knownTime
+    ? `일주의 지지는 ${chart.day.branch_korean}, 시주의 천간은 ${chart.hour.stem_korean}입니다.`
+    : `일주의 지지는 ${chart.day.branch_korean}입니다. 태어난 시각을 몰라 시주는 계산하지 않았습니다.`;
   $("#chart-result").hidden = false;
 }
 
@@ -167,6 +183,25 @@ function toggleNewPersonFields(choice) {
   fields.querySelectorAll("input, select").forEach((control) => {
     control.disabled = !creating;
   });
+  updateUnknownBirthTime(fields);
+}
+
+function updateUnknownBirthTime(scope) {
+  const checkbox = scope.querySelector("[data-unknown-time]");
+  if (!checkbox) return;
+  const unknown = checkbox.checked;
+  const inactive = scope.hidden;
+  const timeInput = scope.querySelector("[data-time-input]");
+  const timeMode = scope.querySelector("[data-time-mode]");
+  const note = scope.querySelector("[data-unknown-time-note]");
+  timeInput.disabled = inactive || unknown;
+  timeInput.required = !unknown;
+  if (timeMode) {
+    if (unknown) timeMode.value = "civil";
+    timeMode.disabled = inactive || unknown;
+  }
+  if (note) note.hidden = !unknown;
+  scope.classList.toggle("birth-time-unknown", unknown);
 }
 
 function updatePairPlace(personCard) {
@@ -259,18 +294,20 @@ function updateValueSelect(fieldSelector, valueSelector, preferred) {
 function pairProfilePayload(form, prefix) {
   const values = serializeForm(form);
   const leapMonth = form.elements.namedItem(`${prefix}_is_leap_month`);
+  const unknownTime = form.elements.namedItem(`${prefix}_birth_time_unknown`).checked;
   return {
     name: values[`${prefix}_name`],
     birth_calendar: values[`${prefix}_birth_calendar`],
     birth_year: Number(values[`${prefix}_birth_year`]),
     birth_month: Number(values[`${prefix}_birth_month`]),
     birth_day: Number(values[`${prefix}_birth_day`]),
-    birth_time: values[`${prefix}_birth_time`],
+    birth_time: unknownTime ? null : values[`${prefix}_birth_time`],
+    birth_time_known: !unknownTime,
     is_leap_month: leapMonth.checked,
     birth_city: values[`${prefix}_birth_city`] || null,
     gender: values[`${prefix}_gender`],
     timezone: values[`${prefix}_timezone`],
-    time_mode: values[`${prefix}_time_mode`],
+    time_mode: unknownTime ? "civil" : values[`${prefix}_time_mode`],
     longitude: null,
   };
 }
@@ -369,6 +406,11 @@ $("#pair-form").addEventListener("change", (event) => {
   }
   const personCard = event.target.closest("[data-person]");
   if (!personCard) return;
+  if (event.target.matches("[data-unknown-time]")) {
+    updateUnknownBirthTime(personCard.querySelector("[data-new-profile]"));
+    updatePairPlace(personCard);
+    return;
+  }
   if (event.target.matches("[data-calendar-kind]")) {
     const lunar = event.target.value === "lunar";
     const leap = personCard.querySelector("[data-leap-month]");
@@ -384,6 +426,11 @@ $("#birth-calendar").addEventListener("change", (event) => {
   const lunar = event.target.value === "lunar";
   $("#leap-month-field").hidden = !lunar;
   if (!lunar) $("#leap-month-field input").checked = false;
+});
+
+$("#profile-form [data-unknown-time]").addEventListener("change", (event) => {
+  updateUnknownBirthTime(event.currentTarget.closest("form"));
+  updatePlaceFields();
 });
 
 $("#profile-select").addEventListener("change", (event) => {
@@ -406,15 +453,20 @@ $("#hour-field").addEventListener("change", () => {
 $("#profile-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const values = serializeForm(event.currentTarget);
+  const unknownTime = event.currentTarget.elements.namedItem("birth_time_unknown").checked;
   const payload = {
     ...values,
+    birth_time: unknownTime ? null : values.birth_time,
+    birth_time_known: !unknownTime,
     birth_year: Number(values.birth_year),
     birth_month: Number(values.birth_month),
     birth_day: Number(values.birth_day),
     is_leap_month: event.currentTarget.elements.namedItem("is_leap_month").checked,
     birth_city: values.birth_city || null,
+    time_mode: unknownTime ? "civil" : values.time_mode,
     longitude: null,
   };
+  delete payload.birth_time_unknown;
   try {
     const profile = await api("/api/profiles", {
       method: "POST",
@@ -566,4 +618,6 @@ $("#calendar-list").addEventListener("click", async (event) => {
 
 updateValueSelect("#day-field", "#day-value", "午");
 updateValueSelect("#hour-field", "#hour-value", "戊");
+updateUnknownBirthTime($("#profile-form"));
+document.querySelectorAll("[data-new-profile]").forEach(updateUnknownBirthTime);
 refresh().catch((error) => notify(`초기 데이터를 읽지 못했습니다: ${error.message}`, true));

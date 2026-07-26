@@ -80,8 +80,15 @@
                 </label>
                 <label class="field">
                   <span>태어난 시간</span>
-                  <input name="primary_birth_time" type="time" value="12:00" step="60" required>
+                  <input name="primary_birth_time" type="time" value="12:00" step="60" data-time-input required>
                 </label>
+                <label class="check-field wide unknown-time-field">
+                  <input name="primary_birth_time_unknown" type="checkbox" data-unknown-time>
+                  <span>태어난 시각을 모릅니다</span>
+                </label>
+                <p class="unknown-time-note wide" data-unknown-time-note hidden>
+                  생년월일로 일주를 계산해 두 사람 추천은 그대로 제공합니다. 시주는 추정하지 않습니다.
+                </p>
                 <div class="date-fields wide" role="group" aria-label="첫 번째 사람 생년월일">
                   <label class="field">
                     <span>태어난 해</span>
@@ -158,8 +165,15 @@
                 </label>
                 <label class="field">
                   <span>태어난 시간</span>
-                  <input name="secondary_birth_time" type="time" value="12:00" step="60" required>
+                  <input name="secondary_birth_time" type="time" value="12:00" step="60" data-time-input required>
                 </label>
+                <label class="check-field wide unknown-time-field">
+                  <input name="secondary_birth_time_unknown" type="checkbox" data-unknown-time>
+                  <span>태어난 시각을 모릅니다</span>
+                </label>
+                <p class="unknown-time-note wide" data-unknown-time-note hidden>
+                  생년월일로 일주를 계산해 두 사람 추천은 그대로 제공합니다. 시주는 추정하지 않습니다.
+                </p>
                 <div class="date-fields wide" role="group" aria-label="두 번째 사람 생년월일">
                   <label class="field">
                     <span>태어난 해</span>
@@ -285,7 +299,7 @@
           <header class="panel-heading">
             <p class="step">01 · 명식</p>
             <h2>출생 프로필</h2>
-            <p>양력 또는 한국 음력의 현지 시각을 입력해 네 기둥을 계산합니다.</p>
+            <p>양력 또는 한국 음력 생일을 입력합니다. 태어난 시각을 모르면 시주를 비워 둡니다.</p>
           </header>
 
           <form id="profile-form" class="form-grid">
@@ -302,8 +316,16 @@
             </label>
             <label class="field">
               <span>탄생 시각</span>
-              <input name="birth_time" type="time" value="12:15" step="60" required>
+              <input name="birth_time" type="time" value="12:15" step="60" data-time-input required>
             </label>
+            <label class="check-field wide unknown-time-field">
+              <input name="birth_time_unknown" type="checkbox" data-unknown-time>
+              <span>태어난 시각을 모릅니다</span>
+            </label>
+            <p class="unknown-time-note wide" data-unknown-time-note hidden>
+              일주까지 확정해 보여 드리고 시주는 임의로 만들지 않습니다. 절기 전환일에는
+              년주·월주가 달라질 수 있습니다.
+            </p>
             <div class="date-fields wide" role="group" aria-label="생년월일">
               <label class="field">
                 <span>태어난 해</span>
@@ -348,7 +370,7 @@
                 </label>
                 <label class="field wide">
                   <span>시간 기준</span>
-                  <select name="time_mode" id="time-mode">
+                  <select name="time_mode" id="time-mode" data-time-mode>
                     <option value="civil" selected>공식 표준시 · 기본</option>
                     <option value="true_solar">진태양시 · 경도 보정</option>
                   </select>

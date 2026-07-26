@@ -233,7 +233,8 @@ def main() -> None:
                 "birth_year": 2000,
                 "birth_month": 1,
                 "birth_day": 2,
-                "birth_time": "08:30:00",
+                "birth_time": None,
+                "birth_time_known": False,
                 "is_leap_month": False,
                 "gender": "unspecified",
                 "birth_city": "seoul",
@@ -246,6 +247,12 @@ def main() -> None:
             status,
             secondary_profile,
         )
+        assert secondary_profile["birth_time"] is None
+        assert secondary_profile["birth_time_known"] is False
+        secondary_chart = secondary_profile["chart"]
+        assert isinstance(secondary_chart, dict)
+        assert secondary_chart["hour"] is None
+        assert isinstance(secondary_chart["day"], dict)
         secondary_profile_id = str(secondary_profile["id"])
 
         status, pair_preview = api_json(
