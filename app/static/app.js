@@ -149,7 +149,7 @@ function updatePlaceFields() {
     timezone.value = city.timezone;
     timezone.readOnly = true;
     $("#place-note").textContent = trueSolar
-      ? `${city.label}의 경도를 서버에서 자동 적용합니다. 위도와 좌표 입력은 필요하지 않습니다.`
+      ? `${city.label}의 대표 경도를 서버에서 자동 적용하므로 좌표를 직접 입력할 필요가 없습니다.`
       : `${city.label}의 시간대 ${city.timezone}를 적용합니다. 표준시는 좌표를 사용하지 않습니다.`;
     return;
   }
@@ -179,7 +179,7 @@ function updatePairPlace(personCard) {
     timezone.value = city.timezone;
     timezone.readOnly = true;
     note.textContent = trueSolar
-      ? `${city.label}의 경도를 자동 적용합니다. 위도와 좌표 입력은 필요하지 않습니다.`
+      ? `${city.label}의 대표 경도를 자동 적용하므로 좌표를 직접 입력할 필요가 없습니다.`
       : `${city.label}의 시간대 ${city.timezone}를 적용합니다.`;
     return;
   }

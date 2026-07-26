@@ -162,7 +162,7 @@ def generate_compatibility_candidates(
     limit: int = 24,
     not_before: datetime | None = None,
 ) -> list[CompatibilityCandidate]:
-    """Return the earliest balanced candidate per eligible calendar day."""
+    """Return the highest-scoring candidate per day, breaking ties by start time."""
 
     if not 1 <= limit <= 96:
         raise ValueError("limit must be between 1 and 96")
