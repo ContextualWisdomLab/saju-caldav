@@ -109,16 +109,21 @@ def iter_chart_windows(
             calculation_midpoint = calculation_start + (
                 calculation_end - calculation_start
             ) / 2
-            civil_midpoint = _civil_from_calculation_time(
-                calculation_midpoint,
-                zone,
-                time_mode,
-                longitude,
-            )
-            current = (
-                calculate_chart(civil_midpoint, timezone, time_mode, longitude)
-                if has_pillar_transition
-                else Chart(
+            if has_pillar_transition:
+                civil_midpoint = _civil_from_calculation_time(
+                    calculation_midpoint,
+                    zone,
+                    time_mode,
+                    longitude,
+                )
+                current = calculate_chart(
+                    civil_midpoint,
+                    timezone,
+                    time_mode,
+                    longitude,
+                )
+            else:
+                current = Chart(
                     year=start_chart.year,
                     month=start_chart.month,
                     day=start_chart.day,
@@ -128,7 +133,6 @@ def iter_chart_windows(
                     ),
                     calculation_local=calculation_midpoint,
                 )
-            )
             yield MatchingWindow(
                 start=civil_start.replace(tzinfo=zone),
                 end=civil_end.replace(tzinfo=zone),

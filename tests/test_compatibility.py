@@ -1,6 +1,5 @@
 from datetime import date, datetime
 
-import app.compatibility as compatibility_module
 from app.compatibility import generate_compatibility_candidates, score_window
 from app.events import MatchingWindow
 from app.saju import Chart, Pillar, calculate_chart
@@ -165,8 +164,7 @@ def test_generator_tie_breaks_with_the_full_start_time(monkeypatch) -> None:
         chart=candidate_chart,
     )
     monkeypatch.setattr(
-        compatibility_module,
-        "iter_chart_windows",
+        "app.compatibility.iter_chart_windows",
         lambda *args, **kwargs: iter((later, earlier)),
     )
 
