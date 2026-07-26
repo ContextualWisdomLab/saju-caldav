@@ -18,6 +18,10 @@ from pydantic import BaseModel, Field
 
 from app.birth import BirthInput, normalize_birth
 from app.caldav import CalDavPublisher, SyncResult
+from app.compatibility import (
+    CompatibilityCandidate,
+    generate_compatibility_candidates,
+)
 from app.events import MatchingWindow, generate_windows
 from app.locations import list_birth_cities, resolve_birth_place
 from app.rules import Rule, validate_rule
@@ -55,7 +59,8 @@ class ProfileCreate(BaseModel):
     birth_year: int = Field(ge=1000, le=2050)
     birth_month: int = Field(ge=1, le=12)
     birth_day: int = Field(ge=1, le=31)
-    birth_time: time
+    birth_time: time | None = None
+    birth_time_known: bool = True
     is_leap_month: bool = False
     gender: Literal["female", "male", "unspecified"] = "unspecified"
     birth_city: str | None = Field(default=None, max_length=80)
@@ -79,6 +84,25 @@ class CalendarCreate(BaseModel):
 class DateRange(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
+
+
+class CompatibilityRequest(DateRange):
+    primary_profile_id: str = Field(min_length=1, max_length=80)
+    secondary_profile_id: str = Field(min_length=1, max_length=80)
+    limit: int = Field(default=12, ge=1, le=96)
+
+
+class CompatibilityCalendarCreate(BaseModel):
+    primary_profile_id: str = Field(min_length=1, max_length=80)
+    secondary_profile_id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=100)
+    slug: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+    visibility: Literal["private", "confidential", "public"] = "private"
+    limit: int = Field(default=36, ge=1, le=96)
 
 
 def _now(zone: ZoneInfo) -> datetime:
@@ -151,11 +175,105 @@ def _calendar_context(
     return calendar, profile, rule, natal
 
 
+def _compatibility_context(
+    store: Store,
+    primary_profile_id: str,
+    secondary_profile_id: str,
+) -> tuple[dict[str, object], dict[str, object], Chart, Chart]:
+    if primary_profile_id == secondary_profile_id:
+        raise HTTPException(
+            status_code=422,
+            detail="서로 다른 두 사람의 프로필을 선택하세요",
+        )
+    primary = store.get_profile(primary_profile_id)
+    secondary = store.get_profile(secondary_profile_id)
+    if primary is None or secondary is None:
+        raise HTTPException(status_code=404, detail="profile not found")
+    try:
+        return primary, secondary, _profile_chart(primary), _profile_chart(secondary)
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422,
+            detail="저장된 시간대 정보를 사용할 수 없습니다",
+        ) from error
+    except (TypeError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+def _compatibility_candidates(
+    store: Store,
+    requested: CompatibilityRequest,
+) -> tuple[dict[str, object], dict[str, object], list[CompatibilityCandidate]]:
+    primary, secondary, primary_chart, secondary_chart = _compatibility_context(
+        store,
+        requested.primary_profile_id,
+        requested.secondary_profile_id,
+    )
+    try:
+        timezone = str(primary["timezone"])
+        zone = ZoneInfo(timezone)
+        current = _now(zone)
+        start_date, end_date = _resolve_date_range(requested, zone, current)
+        candidates = generate_compatibility_candidates(
+            primary_chart,
+            secondary_chart,
+            str(primary["name"]),
+            str(secondary["name"]),
+            start_date,
+            end_date,
+            timezone,
+            str(primary["time_mode"]),
+            float(primary["longitude"]) if primary["longitude"] is not None else None,
+            requested.limit,
+            current if requested.start_date is None else None,
+        )
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422,
+            detail="저장된 시간대 정보를 사용할 수 없습니다",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return primary, secondary, candidates
+
+
+def _candidate_json(candidate: CompatibilityCandidate) -> dict[str, object]:
+    window = candidate.window
+    return {
+        "start": window.start.isoformat(),
+        "end": window.end.isoformat(),
+        "score": candidate.score,
+        "primary_score": candidate.primary_score,
+        "secondary_score": candidate.secondary_score,
+        "label": candidate.label,
+        "reasons": list(candidate.reasons),
+        "day_pillar": window.chart.day.ganzhi,
+        "hour_pillar": window.chart.hour.ganzhi,
+        "day_branch_korean": window.chart.day.branch_korean,
+        "hour_branch_korean": window.chart.hour.branch_korean,
+    }
+
+
 def _windows(
     store: Store,
     calendar_id: str,
     requested: DateRange,
 ) -> tuple[dict[str, object], list[MatchingWindow]]:
+    stored_calendar = store.get_calendar(calendar_id)
+    if stored_calendar is None:
+        raise HTTPException(status_code=404, detail="calendar not found")
+    if stored_calendar.get("kind") == "compatibility":
+        settings = dict(stored_calendar["rule"])
+        requested_pair = CompatibilityRequest(
+            primary_profile_id=str(stored_calendar["profile_id"]),
+            secondary_profile_id=str(stored_calendar["secondary_profile_id"]),
+            start_date=requested.start_date,
+            end_date=requested.end_date,
+            limit=int(settings.get("limit", 36)),
+        )
+        _, _, candidates = _compatibility_candidates(store, requested_pair)
+        return stored_calendar, [candidate.window for candidate in candidates]
+
     calendar, profile, rule, natal = _calendar_context(store, calendar_id)
     try:
         timezone = str(profile["timezone"])
@@ -251,6 +369,24 @@ def create_app(
 
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
     def create_profile(requested: ProfileCreate) -> dict[str, object]:
+        if requested.birth_time_known and requested.birth_time is None:
+            raise HTTPException(
+                status_code=422,
+                detail="태어난 시각을 입력하거나 ‘태어난 시각을 모릅니다’를 선택하세요",
+            )
+        if not requested.birth_time_known and requested.time_mode == "true_solar":
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "태어난 시각을 모르면 진태양시를 적용할 수 없습니다. "
+                    "공식 표준시를 선택하세요"
+                ),
+            )
+        calculation_time = (
+            requested.birth_time if requested.birth_time_known else time(12, 0)
+        )
+        if calculation_time is None:
+            raise RuntimeError("validated birth time is missing")
         try:
             birth_local = normalize_birth(
                 BirthInput(
@@ -258,7 +394,7 @@ def create_app(
                     year=requested.birth_year,
                     month=requested.birth_month,
                     day=requested.birth_day,
-                    at=requested.birth_time,
+                    at=calculation_time,
                     is_leap_month=requested.is_leap_month,
                 )
             )
@@ -280,13 +416,21 @@ def create_app(
             ) from error
         except (ValueError, OSError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+        chart_json = _chart_json(chart)
+        if not requested.birth_time_known:
+            chart_json["hour"] = None
         return metadata_store.create_profile(
             name=requested.name,
             birth_calendar=requested.birth_calendar,
             birth_year=requested.birth_year,
             birth_month=requested.birth_month,
             birth_day=requested.birth_day,
-            birth_time=requested.birth_time.isoformat(),
+            birth_time=(
+                requested.birth_time.isoformat()
+                if requested.birth_time_known and requested.birth_time is not None
+                else None
+            ),
+            birth_time_known=requested.birth_time_known,
             is_leap_month=requested.is_leap_month,
             birth_local=birth_local,
             birth_city=place.city_id,
@@ -295,7 +439,7 @@ def create_app(
             timezone=place.timezone,
             time_mode=requested.time_mode,
             longitude=place.longitude,
-            chart=_chart_json(chart),
+            chart=chart_json,
         )
 
     @api.delete("/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -309,16 +453,25 @@ def create_app(
 
     @api.post("/calendars", status_code=status.HTTP_201_CREATED)
     def create_calendar(requested: CalendarCreate) -> dict[str, object]:
-        if metadata_store.get_profile(requested.profile_id) is None:
+        profile = metadata_store.get_profile(requested.profile_id)
+        if profile is None:
             raise HTTPException(status_code=404, detail="profile not found")
         try:
-            validate_rule(requested.rule)
+            rule = validate_rule(requested.rule)
+            if not bool(profile["birth_time_known"]) and any(
+                predicate.source == "natal" and predicate.value.startswith("hour.")
+                for predicate in rule.predicates
+            ):
+                raise ValueError(
+                    "태어난 시각을 모르는 프로필은 출생 시주 조건을 사용할 수 없습니다"
+                )
             return metadata_store.create_calendar(
                 profile_id=requested.profile_id,
                 name=requested.name,
                 slug=requested.slug,
                 visibility=requested.visibility,
                 rule=requested.rule,
+                kind="rule",
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
@@ -332,6 +485,29 @@ def create_app(
 
     @api.post("/calendars/{calendar_id}/preview")
     def preview_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
+        calendar = metadata_store.get_calendar(calendar_id)
+        if calendar is None:
+            raise HTTPException(status_code=404, detail="calendar not found")
+        if calendar.get("kind") == "compatibility":
+            settings = dict(calendar["rule"])
+            compatibility_request = CompatibilityRequest(
+                primary_profile_id=str(calendar["profile_id"]),
+                secondary_profile_id=str(calendar["secondary_profile_id"]),
+                start_date=requested.start_date,
+                end_date=requested.end_date,
+                limit=int(settings.get("limit", 36)),
+            )
+            primary, secondary, candidates = _compatibility_candidates(
+                metadata_store,
+                compatibility_request,
+            )
+            return {
+                "count": len(candidates),
+                "primary_name": primary["name"],
+                "secondary_name": secondary["name"],
+                "method": "balanced_branch_harmony",
+                "events": [_candidate_json(candidate) for candidate in candidates],
+            }
         _, windows = _windows(metadata_store, calendar_id, requested)
         return {
             "count": len(windows),
@@ -347,6 +523,51 @@ def create_app(
                 for window in windows
             ],
         }
+
+    @api.post("/compatibility/preview")
+    def preview_compatibility(requested: CompatibilityRequest) -> dict[str, object]:
+        primary, secondary, candidates = _compatibility_candidates(
+            metadata_store,
+            requested,
+        )
+        return {
+            "count": len(candidates),
+            "primary_name": primary["name"],
+            "secondary_name": secondary["name"],
+            "method": "balanced_branch_harmony",
+            "events": [_candidate_json(candidate) for candidate in candidates],
+        }
+
+    @api.post(
+        "/compatibility/calendars",
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_compatibility_calendar(
+        requested: CompatibilityCalendarCreate,
+    ) -> dict[str, object]:
+        _compatibility_context(
+            metadata_store,
+            requested.primary_profile_id,
+            requested.secondary_profile_id,
+        )
+        try:
+            return metadata_store.create_calendar(
+                profile_id=requested.primary_profile_id,
+                secondary_profile_id=requested.secondary_profile_id,
+                name=requested.name,
+                slug=requested.slug,
+                visibility=requested.visibility,
+                kind="compatibility",
+                rule={
+                    "mode": "balanced_branch_harmony",
+                    "limit": requested.limit,
+                },
+            )
+        except sqlite3.IntegrityError as error:
+            raise HTTPException(
+                status_code=409,
+                detail="calendar slug already exists",
+            ) from error
 
     @api.post("/calendars/{calendar_id}/sync")
     def sync_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:

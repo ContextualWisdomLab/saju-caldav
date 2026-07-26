@@ -74,6 +74,53 @@ def _create_profile(client: TestClient) -> dict[str, object]:
     return response.json()
 
 
+def _create_secondary_profile(client: TestClient) -> dict[str, object]:
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "두 번째 공개 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 2,
+            "birth_time": "12:15:00",
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "timezone": "Asia/Seoul",
+            "birth_city": "seoul",
+            "time_mode": "civil",
+            "longitude": None,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def _create_unknown_time_profile(client: TestClient) -> dict[str, object]:
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "태어난 시각 미상 예시",
+            "birth_calendar": "lunar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 2,
+            "birth_time": None,
+            "birth_time_known": False,
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "timezone": "Asia/Seoul",
+            "birth_city": "seoul",
+            "time_mode": "civil",
+            "longitude": None,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def _create_calendar(client: TestClient, profile_id: str) -> dict[str, object]:
     response = client.post(
         "/api/calendars",
@@ -116,8 +163,11 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert client.get("/").status_code == 401
     page = client.get("/", auth=_auth())
     assert page.status_code == 200
-    assert "사주 명식을" in page.text
-    assert "시간 캘린더로" in page.text
+    assert "두 사람의 좋은 시간 찾기" in page.text
+    assert "둘이 좋은 날과 시간 찾기" in page.text
+    assert "사주를 잘 몰라도 됩니다" in page.text
+    assert "태어난 시각을 모릅니다" in page.text
+    assert 'id="compatibility-result"' in page.text
     assert "출생 도시" in page.text
     assert 'name="longitude"' not in page.text
     assert 'name="visibility"' in page.text
@@ -134,6 +184,7 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     assert profile["chart"]["day"]["branch_korean"] == "오화"
     assert profile["chart"]["hour"]["stem_description"] == "양의 성질을 가진 큰땅"
     assert profile["birth_calendar"] == "solar"
+    assert profile["birth_time_known"] is True
     assert profile["birth_local"] == "2000-01-01T12:15:00"
     assert profile["gender"] == "unspecified"
     assert profile["birth_city"] == "seoul"
@@ -165,6 +216,227 @@ def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
     }
     assert publisher.calls[0]["slug"] == "my-custom-hours"
     assert publisher.calls[0]["visibility"] == "confidential"
+
+
+def test_unknown_birth_time_keeps_day_pillar_without_inventing_hour_pillar(
+    tmp_path: Path,
+) -> None:
+    client, _ = _client(tmp_path)
+
+    profile = _create_unknown_time_profile(client)
+
+    assert profile["birth_calendar"] == "lunar"
+    assert profile["birth_time"] is None
+    assert profile["birth_time_known"] is False
+    assert profile["birth_local"].endswith("T12:00:00")
+    assert profile["chart"]["day"]["ganzhi"]
+    assert profile["chart"]["hour"] is None
+    assert profile["chart"]["calculation_local"].endswith("T12:00:00")
+
+
+def test_unknown_birth_time_still_supports_two_person_recommendations(
+    tmp_path: Path,
+) -> None:
+    client, _ = _client(tmp_path)
+    primary = _create_profile(client)
+    secondary = _create_unknown_time_profile(client)
+
+    response = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "start_date": "2000-02-06",
+            "end_date": "2000-03-06",
+            "limit": 8,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert 1 <= response.json()["count"] <= 8
+
+
+def test_unknown_birth_time_rejects_true_solar_mode(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "시각 미상 진태양시 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 2,
+            "birth_time": None,
+            "birth_time_known": False,
+            "is_leap_month": False,
+            "gender": "unspecified",
+            "birth_city": "seoul",
+            "timezone": "Asia/Seoul",
+            "time_mode": "true_solar",
+            "longitude": None,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "태어난 시각을 모르면 진태양시를 적용할 수 없습니다. 공식 표준시를 선택하세요"
+    }
+
+
+def test_known_birth_time_is_required_by_default(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "빠진 시각 예시",
+            "birth_calendar": "solar",
+            "birth_year": 2000,
+            "birth_month": 1,
+            "birth_day": 2,
+            "gender": "unspecified",
+            "birth_city": "seoul",
+            "timezone": "Asia/Seoul",
+            "time_mode": "civil",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "태어난 시각을 입력하거나 ‘태어난 시각을 모릅니다’를 선택하세요"
+    }
+
+
+def test_unknown_birth_time_allows_day_rule_but_rejects_natal_hour_rule(
+    tmp_path: Path,
+) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_unknown_time_profile(client)
+
+    allowed = client.post(
+        "/api/calendars",
+        auth=_auth(),
+        json={
+            "profile_id": profile["id"],
+            "name": "일지와 현재 시간 기준",
+            "slug": "unknown-time-day-rule",
+            "visibility": "private",
+            "rule": {
+                "logic": "all",
+                "predicates": [
+                    {"field": "day.branch", "source": "natal", "value": "day.branch"},
+                    {"field": "hour.stem", "source": "literal", "value": "壬"},
+                ],
+            },
+        },
+    )
+    assert allowed.status_code == 201, allowed.text
+
+    rejected = client.post(
+        "/api/calendars",
+        auth=_auth(),
+        json={
+            "profile_id": profile["id"],
+            "name": "알 수 없는 시주 기준",
+            "slug": "unknown-time-hour-rule",
+            "visibility": "private",
+            "rule": {
+                "logic": "all",
+                "predicates": [
+                    {"field": "hour.stem", "source": "natal", "value": "hour.stem"}
+                ],
+            },
+        },
+    )
+    assert rejected.status_code == 422
+    assert rejected.json() == {
+        "detail": "태어난 시각을 모르는 프로필은 출생 시주 조건을 사용할 수 없습니다"
+    }
+
+
+def test_two_person_preview_calendar_and_sync_are_plain_korean(
+    tmp_path: Path,
+) -> None:
+    client, publisher = _client(tmp_path)
+    primary = _create_profile(client)
+    secondary = _create_secondary_profile(client)
+
+    preview = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "start_date": "2000-01-01",
+            "end_date": "2000-01-31",
+            "limit": 8,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    payload = preview.json()
+    assert payload["method"] == "balanced_branch_harmony"
+    assert payload["primary_name"] == "공개 테스트 예시"
+    assert payload["secondary_name"] == "두 번째 공개 예시"
+    assert 1 <= payload["count"] <= 8
+    assert all(event["score"] >= 60 for event in payload["events"])
+    assert all(event["label"].endswith("시간") for event in payload["events"])
+    assert all(event["reasons"] for event in payload["events"])
+
+    created = client.post(
+        "/api/compatibility/calendars",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "name": "둘이 좋은 시간",
+            "slug": "good-time-together",
+            "visibility": "private",
+            "limit": 8,
+        },
+    )
+    assert created.status_code == 201, created.text
+    calendar = created.json()
+    assert calendar["kind"] == "compatibility"
+    assert calendar["secondary_profile_id"] == secondary["id"]
+
+    calendar_preview = client.post(
+        f"/api/calendars/{calendar['id']}/preview",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-31"},
+    )
+    assert calendar_preview.status_code == 200, calendar_preview.text
+    assert calendar_preview.json()["events"][0]["reasons"]
+
+    synced = client.post(
+        f"/api/calendars/{calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-31"},
+    )
+    assert synced.status_code == 200, synced.text
+    assert publisher.calls[-1]["calendar_name"] == "둘이 좋은 시간"
+    assert publisher.calls[-1]["visibility"] == "private"
+    assert synced.json()["event_count"] == len(publisher.calls[-1]["windows"])
+
+
+def test_two_person_flow_requires_distinct_profiles(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_profile(client)
+
+    response = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": profile["id"],
+            "secondary_profile_id": profile["id"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "서로 다른 두 사람의 프로필을 선택하세요"
 
 
 def test_city_automatically_supplies_timezone_and_true_solar_longitude(

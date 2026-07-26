@@ -42,6 +42,7 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
 
     assert store.get_profile(profile["id"])["chart"]["day"]["branch"] == "午"
     assert store.get_profile(profile["id"])["birth_calendar"] == "solar"
+    assert store.get_profile(profile["id"])["birth_time_known"] is True
     assert store.get_profile(profile["id"])["birth_city"] == "seoul"
     assert store.get_calendar(calendar["id"])["visibility"] == "private"
     assert store.get_calendar(calendar["id"])["rule"]["predicates"][1]["value"] == "戊"
@@ -120,6 +121,7 @@ def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> No
     assert profile["birth_month"] == 2
     assert profile["birth_day"] == 3
     assert profile["birth_time"] == "04:05:06"
+    assert profile["birth_time_known"] is True
     assert profile["is_leap_month"] == 0
     assert profile["birth_city"] is None
     assert profile["birth_city_name"] is None
@@ -129,3 +131,38 @@ def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> No
         for row in sqlite3.connect(database).execute("PRAGMA table_info(calendars)")
     }
     assert "visibility" in calendar_columns
+    assert "kind" in calendar_columns
+    assert "secondary_profile_id" in calendar_columns
+
+
+def test_unknown_birth_time_round_trip_stays_unknown_after_reinitialize(
+    tmp_path: Path,
+) -> None:
+    store = Store(tmp_path / "unknown-time.db")
+    store.initialize()
+    profile = store.create_profile(
+        name="태어난 시각 미상",
+        birth_calendar="solar",
+        birth_year=2000,
+        birth_month=1,
+        birth_day=2,
+        birth_time=None,
+        birth_time_known=False,
+        is_leap_month=False,
+        birth_local=datetime(2000, 1, 2, 12),
+        birth_city="seoul",
+        birth_city_name="대한민국 · 서울",
+        gender="unspecified",
+        timezone="Asia/Seoul",
+        time_mode="civil",
+        longitude=None,
+        chart={"day": {"stem": "己", "branch": "未"}, "hour": None},
+    )
+
+    store.initialize()
+    reloaded = store.get_profile(str(profile["id"]))
+
+    assert reloaded is not None
+    assert reloaded["birth_time"] is None
+    assert reloaded["birth_time_known"] is False
+    assert reloaded["chart"]["hour"] is None
