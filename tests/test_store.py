@@ -129,3 +129,5 @@ def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> No
         for row in sqlite3.connect(database).execute("PRAGMA table_info(calendars)")
     }
     assert "visibility" in calendar_columns
+    assert "kind" in calendar_columns
+    assert "secondary_profile_id" in calendar_columns

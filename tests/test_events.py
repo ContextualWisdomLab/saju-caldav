@@ -2,7 +2,7 @@ from datetime import date, datetime, time
 
 import pytest
 
-from app.events import generate_windows
+from app.events import generate_windows, iter_chart_windows
 from app.rules import validate_rule
 from app.saju import calculate_chart
 
@@ -90,3 +90,57 @@ def test_generation_range_is_bounded() -> None:
             "civil",
             None,
         )
+
+
+@pytest.mark.parametrize(
+    ("time_mode", "longitude"),
+    [("civil", None), ("true_solar", 126.978)],
+)
+def test_optimized_window_charts_match_direct_midpoint_calculation(
+    time_mode: str,
+    longitude: float | None,
+) -> None:
+    windows = list(
+        iter_chart_windows(
+            date(2000, 1, 1),
+            date(2000, 1, 1),
+            "Asia/Seoul",
+            time_mode,
+            longitude,
+        )
+    )
+
+    for window in windows:
+        civil_midpoint = window.start.replace(tzinfo=None) + (
+            window.end.replace(tzinfo=None) - window.start.replace(tzinfo=None)
+        ) / 2
+        direct = calculate_chart(
+            civil_midpoint,
+            "Asia/Seoul",
+            time_mode,
+            longitude,
+        )
+        assert window.chart.year == direct.year
+        assert window.chart.month == direct.month
+        assert window.chart.day == direct.day
+        assert window.chart.hour == direct.hour
+
+
+def test_window_charts_follow_an_intraday_solar_term_transition() -> None:
+    windows = list(
+        iter_chart_windows(
+            date(2024, 2, 4),
+            date(2024, 2, 4),
+            "Asia/Seoul",
+            "civil",
+            None,
+        )
+    )
+
+    before = next(window for window in windows if window.start.hour == 15)
+    after = next(window for window in windows if window.start.hour == 17)
+
+    assert before.chart.year.ganzhi == "癸卯"
+    assert before.chart.month.ganzhi == "乙丑"
+    assert after.chart.year.ganzhi == "甲辰"
+    assert after.chart.month.ganzhi == "丙寅"
