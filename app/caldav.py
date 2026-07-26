@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 from dataclasses import dataclass
 from datetime import UTC
-from urllib.error import HTTPError, URLError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urlsplit
 from xml.sax.saxutils import escape
 
+import httpx
 from icalendar import Calendar, Event
 
 from app.events import MatchingWindow
+
+VISIBILITY_CLASSES = {
+    "private": "PRIVATE",
+    "confidential": "CONFIDENTIAL",
+    "public": "PUBLIC",
+}
 
 
 def event_uid(calendar_id: str, window: MatchingWindow) -> str:
@@ -24,8 +28,17 @@ def event_uid(calendar_id: str, window: MatchingWindow) -> str:
 def build_icalendar(
     calendar_id: str,
     calendar_name: str,
+    visibility: str,
     window: MatchingWindow,
 ) -> bytes:
+    try:
+        ical_class = VISIBILITY_CLASSES[visibility]
+    except KeyError as error:
+        allowed = ", ".join(VISIBILITY_CLASSES)
+        raise ValueError(
+            f"지원하지 않는 캘린더 공개 수준: {visibility!r}; "
+            f"사용할 수 있는 값: {allowed}"
+        ) from error
     calendar = Calendar()
     calendar.add("prodid", "-//ContextualWisdomLab//Saju CalDAV//KO")
     calendar.add("version", "2.0")
@@ -37,28 +50,10 @@ def build_icalendar(
     event.add("dtstamp", window.start.astimezone(UTC))
     event.add("dtstart", window.start)
     event.add("dtend", window.end)
-    event.add(
-        "summary",
-        f"{window.chart.day.ganzhi}일 · {window.chart.hour.ganzhi}시 — {calendar_name}",
-    )
-    event.add(
-        "description",
-        "\n".join(
-            (
-                f"규칙 캘린더: {calendar_name}",
-                f"일주: {window.chart.day.ganzhi}",
-                f"일지: {window.chart.day.branch}{window.chart.day.branch_element}",
-                f"시주: {window.chart.hour.ganzhi}",
-                f"시간: {window.chart.hour.stem}{window.chart.hour.stem_element}",
-                "문화·역법 참고용이며 운세의 과학적 타당성을 주장하지 않습니다.",
-            )
-        ),
-    )
+    event.add("summary", calendar_name)
+    event.add("description", "사용자가 설정한 맞춤 시간입니다.")
     event.add("transp", "TRANSPARENT")
-    event.add("class", "PRIVATE")
-    event.add("categories", ["SAJU", "GANZHI"])
-    event.add("x-saju-day-pillar", window.chart.day.ganzhi)
-    event.add("x-saju-hour-pillar", window.chart.hour.ganzhi)
+    event.add("class", ical_class)
     calendar.add_component(event)
     return calendar.to_ical()
 
@@ -71,7 +66,21 @@ class SyncResult:
 
 class CalDavPublisher:
     def __init__(self, base_url: str, username: str, password: str, timeout: float = 10) -> None:
-        self.base_url = base_url.rstrip("/")
+        normalized_url = base_url.rstrip("/")
+        parsed = urlsplit(normalized_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "CalDAV base URL must be an http or https URL without credentials, "
+                "query, or fragment"
+            )
+        self.base_url = normalized_url
         self.username = username
         self.password = password
         self.timeout = timeout
@@ -84,26 +93,31 @@ class CalDavPublisher:
         content_type: str,
         accepted: set[int],
     ) -> int:
-        token = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
-        request = Request(
-            url,
-            data=data,
-            method=method,
-            headers={
-                "Authorization": f"Basic {token}",
-                "Content-Type": content_type,
-                "Accept": "application/xml, text/calendar",
-            },
-        )
         try:
-            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
-                status = response.status
-        except HTTPError as error:
-            if error.code in accepted:
-                return error.code
-            raise RuntimeError(f"CalDAV {method} failed with HTTP {error.code}") from error
-        except URLError as error:
-            raise RuntimeError(f"CalDAV {method} connection failed: {error.reason}") from error
+            response = httpx.request(
+                method,
+                url,
+                content=data,
+                headers={
+                    "Content-Type": content_type,
+                    "Accept": "application/xml, text/calendar",
+                },
+                auth=(self.username, self.password),
+                timeout=self.timeout,
+                follow_redirects=False,
+            )
+        except httpx.RequestError as error:
+            summary = " ".join(str(error).split())
+            for sensitive in (self.username, self.password):
+                if sensitive:
+                    summary = summary.replace(sensitive, "<redacted>")
+            reason = type(error).__name__
+            if summary:
+                reason = f"{reason}: {summary[:240]}"
+            raise RuntimeError(
+                f"CalDAV {method} connection failed ({reason})"
+            ) from error
+        status = response.status_code
         if status not in accepted:
             raise RuntimeError(f"CalDAV {method} returned unexpected HTTP {status}")
         return status
@@ -113,6 +127,7 @@ class CalDavPublisher:
         calendar_id: str,
         slug: str,
         calendar_name: str,
+        visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult:
         user_path = quote(self.username, safe="")
@@ -138,7 +153,7 @@ class CalDavPublisher:
             self._request(
                 "PUT",
                 f"{collection_url}{uid}.ics",
-                build_icalendar(calendar_id, calendar_name, window),
+                build_icalendar(calendar_id, calendar_name, visibility, window),
                 "text/calendar; charset=utf-8",
                 {200, 201, 204},
             )

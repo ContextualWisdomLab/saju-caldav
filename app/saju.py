@@ -26,6 +26,32 @@ BRANCH_ELEMENTS = {
     "戌": "土",
     "亥": "水",
 }
+STEM_KOREAN = {
+    "甲": ("갑목", "양의 성질을 가진 큰나무"),
+    "乙": ("을목", "음의 성질을 가진 풀과 덩굴"),
+    "丙": ("병화", "양의 성질을 가진 큰불"),
+    "丁": ("정화", "음의 성질을 가진 작은불"),
+    "戊": ("무토", "양의 성질을 가진 큰땅"),
+    "己": ("기토", "음의 성질을 가진 부드러운 땅"),
+    "庚": ("경금", "양의 성질을 가진 단단한 쇠"),
+    "辛": ("신금", "음의 성질을 가진 세밀한 쇠"),
+    "壬": ("임수", "양의 성질을 가진 큰물"),
+    "癸": ("계수", "음의 성질을 가진 작은물"),
+}
+BRANCH_KOREAN = {
+    "子": ("자수", "십이지의 쥐, 오행으로는 물"),
+    "丑": ("축토", "십이지의 소, 오행으로는 흙"),
+    "寅": ("인목", "십이지의 호랑이, 오행으로는 나무"),
+    "卯": ("묘목", "십이지의 토끼, 오행으로는 나무"),
+    "辰": ("진토", "십이지의 용, 오행으로는 흙"),
+    "巳": ("사화", "십이지의 뱀, 오행으로는 불"),
+    "午": ("오화", "십이지의 말, 오행으로는 불"),
+    "未": ("미토", "십이지의 양, 오행으로는 흙"),
+    "申": ("신금", "십이지의 원숭이, 오행으로는 쇠"),
+    "酉": ("유금", "십이지의 닭, 오행으로는 쇠"),
+    "戌": ("술토", "십이지의 개, 오행으로는 흙"),
+    "亥": ("해수", "십이지의 돼지, 오행으로는 물"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +74,22 @@ class Pillar:
     @property
     def branch_element(self) -> str:
         return BRANCH_ELEMENTS[self.branch]
+
+    @property
+    def stem_korean(self) -> str:
+        return STEM_KOREAN[self.stem][0]
+
+    @property
+    def stem_description(self) -> str:
+        return STEM_KOREAN[self.stem][1]
+
+    @property
+    def branch_korean(self) -> str:
+        return BRANCH_KOREAN[self.branch][0]
+
+    @property
+    def branch_description(self) -> str:
+        return BRANCH_KOREAN[self.branch][1]
 
 
 @dataclass(frozen=True, slots=True)

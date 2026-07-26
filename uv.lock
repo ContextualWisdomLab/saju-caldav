@@ -285,6 +285,15 @@ wheels = [
 ]
 
 [[package]]
+name = "korean-lunar-calendar"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/9f/6160e95f3934026194dc7a0b5c78fe5c6e74761830ddea3e9cfc38e3f983/korean_lunar_calendar-0.4.0.tar.gz", hash = "sha256:be56f27bc0594fdbbdf7bbe00f504a9f929a31e311bd7d9bb93561b645afade7", size = 13425, upload-time = "2026-06-15T14:19:57.163Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/88/f56033b09fdca5c8c5e5fc2f3513950a05cd62caa9bd8e6d2750a887c86e/korean_lunar_calendar-0.4.0-py3-none-any.whl", hash = "sha256:c042e20de0bb702add6bec8d0f6da1ea8d3b170838e63846f70420cf341fe4e7", size = 11323, upload-time = "2026-06-15T14:19:56.089Z" },
+]
+
+[[package]]
 name = "libpass"
 version = "1.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -292,12 +301,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/2a/f6/210563eef148773ef
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ed/a6/ff00d926a9f4ece9e0732bcea1c3e8e9280390f48cec53f237e21f220082/libpass-1.9.3-py3-none-any.whl", hash = "sha256:3cbeb14d22086660e92c30d787ea981973d67394e81c8c870e1a83cfe1c84353", size = 307118, upload-time = "2025-10-09T14:26:25.551Z" },
 ]
-
-[[package]]
-name = "lunar-python"
-version = "1.4.8"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/59/45/5154c95ae7feaab7ca508e71c3288692c09952dfe33b03b7c2f18a32e2cd/lunar_python-1.4.8.tar.gz", hash = "sha256:3aa11cc73c25e70ddf0ba5bdac7398c03acc9491a3aa512a91c9642973b669d6", size = 105862, upload-time = "2025-11-05T12:31:53.353Z" }
 
 [[package]]
 name = "packaging"
@@ -527,7 +530,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "icalendar" },
-    { name = "lunar-python" },
+    { name = "korean-lunar-calendar" },
     { name = "radicale" },
     { name = "tzdata" },
     { name = "uvicorn" },
@@ -545,7 +548,7 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.139.2" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "icalendar", specifier = "==7.2.0" },
-    { name = "lunar-python", specifier = "==1.4.8" },
+    { name = "korean-lunar-calendar", specifier = "==0.4.0" },
     { name = "radicale", specifier = "==3.7.6" },
     { name = "tzdata", specifier = "==2026.3" },
     { name = "uvicorn", specifier = "==0.41.0" },

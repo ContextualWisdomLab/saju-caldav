@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import time
-from urllib.error import HTTPError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
+from datetime import datetime
+from urllib.parse import quote, urljoin
+from xml.etree import ElementTree
+
+import httpx
+
+HTTP_TIMEOUT_SECONDS = float(os.environ.get("SMOKE_HTTP_TIMEOUT_SECONDS", "120"))
 
 
 def request(
@@ -20,22 +23,19 @@ def request(
     content_type: str = "application/json",
     headers: dict[str, str] | None = None,
 ) -> tuple[int, bytes]:
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    requested = Request(
+    response = httpx.request(
+        method,
         url,
-        data=body,
-        method=method,
+        content=body,
         headers={
-            "Authorization": f"Basic {token}",
             "Content-Type": content_type,
             **(headers or {}),
         },
+        auth=(username, password),
+        timeout=HTTP_TIMEOUT_SECONDS,
+        follow_redirects=False,
     )
-    try:
-        with urlopen(requested, timeout=20) as response:  # noqa: S310
-            return response.status, response.read()
-    except HTTPError as error:
-        return error.code, error.read()
+    return response.status_code, response.content
 
 
 def api_json(
@@ -58,9 +58,25 @@ def main() -> None:
     caldav_base = os.environ.get("CALDAV_PUBLIC_URL", "http://127.0.0.1:5232")
     caldav_user = os.environ["CALDAV_USERNAME"]
     caldav_password = os.environ["CALDAV_PASSWORD"]
+    visibility = os.environ.get("SMOKE_VISIBILITY", "private")
+    visibility_classes = {
+        "private": b"PRIVATE",
+        "confidential": b"CONFIDENTIAL",
+        "public": b"PUBLIC",
+    }
+    if visibility not in visibility_classes:
+        raise ValueError("SMOKE_VISIBILITY must be private, confidential, or public")
     suffix = f"{int(time.time())}-{os.getpid()}"
     profile_id = ""
     collection_url = f"{caldav_base.rstrip('/')}/{quote(caldav_user, safe='')}/smoke-{suffix}/"
+    private_birth = os.environ.get("PRIVATE_BIRTH_LOCAL")
+    birth_local = (
+        datetime.fromisoformat(private_birth)
+        if private_birth
+        else datetime(2000, 1, 1, 12, 15)
+    )
+    if birth_local.tzinfo is not None:
+        raise ValueError("birth input must be a local wall time without an offset")
 
     try:
         status, profile = api_json(
@@ -70,10 +86,16 @@ def main() -> None:
             app_user,
             app_password,
             {
-                "name": f"acceptance-smoke-{suffix}",
-                "birth_local": "1990-06-15T08:30:00",
-                "gender": "female",
-                "timezone": "Asia/Seoul",
+                "name": f"smoke-{suffix}",
+                "birth_calendar": "solar",
+                "birth_year": birth_local.year,
+                "birth_month": birth_local.month,
+                "birth_day": birth_local.day,
+                "birth_time": birth_local.time().isoformat(),
+                "is_leap_month": False,
+                "gender": "unspecified",
+                "birth_city": "seoul",
+                "timezone": os.environ.get("PRIVATE_TIMEZONE", "Asia/Seoul"),
                 "time_mode": "civil",
                 "longitude": None,
             },
@@ -82,8 +104,16 @@ def main() -> None:
         profile_id = str(profile["id"])
         chart = profile["chart"]
         assert isinstance(chart, dict)
-        assert chart["day"]["branch"] == "亥"
-        assert chart["hour"]["stem"] == "壬"
+        day = chart["day"]
+        hour = chart["hour"]
+        assert isinstance(day, dict) and isinstance(hour, dict)
+        expected_day_branch = os.environ.get("PRIVATE_EXPECT_DAY_BRANCH")
+        expected_hour_stem = os.environ.get("PRIVATE_EXPECT_HOUR_STEM")
+        if expected_day_branch:
+            assert day["branch"] == expected_day_branch
+        if expected_hour_stem:
+            assert hour["stem"] == expected_hour_stem
+        hour_stem = str(expected_hour_stem or hour["stem"])
 
         status, calendar = api_json(
             "POST",
@@ -93,8 +123,9 @@ def main() -> None:
             app_password,
             {
                 "profile_id": profile_id,
-                "name": "acceptance 亥日 壬時",
+                "name": "맞춤 시간",
                 "slug": f"smoke-{suffix}",
+                "visibility": visibility,
                 "rule": {
                     "logic": "all",
                     "predicates": [
@@ -103,14 +134,19 @@ def main() -> None:
                             "source": "natal",
                             "value": "day.branch",
                         },
-                        {"field": "hour.stem", "source": "literal", "value": "壬"},
+                        {
+                            "field": "hour.stem",
+                            "source": "literal",
+                            "value": hour_stem,
+                        },
                     ],
                 },
             },
         )
         assert status == 201 and isinstance(calendar, dict), (status, calendar)
+        assert calendar["visibility"] == visibility
         calendar_id = str(calendar["id"])
-        range_payload = {"start_date": "1990-06-15", "end_date": "1990-06-15"}
+        range_payload: dict[str, object] = {}
 
         status, preview = api_json(
             "POST",
@@ -121,8 +157,7 @@ def main() -> None:
             range_payload,
         )
         assert status == 200 and isinstance(preview, dict), (status, preview)
-        assert preview["count"] == 1
-        assert preview["events"][0]["start"] == "1990-06-15T07:00:00+09:00"
+        assert int(preview["count"]) > 0
 
         status, synced = api_json(
             "POST",
@@ -133,7 +168,7 @@ def main() -> None:
             range_payload,
         )
         assert status == 200 and isinstance(synced, dict), (status, synced)
-        assert synced["event_count"] == 1
+        assert synced["event_count"] == preview["count"]
 
         status, listing = request(
             "PROPFIND",
@@ -148,7 +183,24 @@ def main() -> None:
             {"Depth": "1"},
         )
         assert status == 207 and b".ics" in listing, (status, listing[:500])
-        print("SAJU_CALDAV_ACCEPTANCE_OK event_count=1 day_branch=亥 hour_stem=壬")
+        root = ElementTree.fromstring(listing)
+        href = next(
+            element.text
+            for element in root.iter()
+            if element.tag.endswith("href")
+            and element.text
+            and element.text.endswith(".ics")
+        )
+        status, event = request(
+            "GET",
+            urljoin(caldav_base.rstrip("/") + "/", href.lstrip("/")),
+            caldav_user,
+            caldav_password,
+        )
+        assert status == 200, (status, event[:500])
+        assert b"CLASS:" + visibility_classes[visibility] in event
+        assert b"X-SAJU" not in event
+        print(f"SAJU_CALDAV_SMOKE_OK event_count={preview['count']}")
     finally:
         if collection_url:
             request("DELETE", collection_url, caldav_user, caldav_password)

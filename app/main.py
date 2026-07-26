@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import secrets
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -15,8 +16,10 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.birth import BirthInput, normalize_birth
 from app.caldav import CalDavPublisher, SyncResult
 from app.events import MatchingWindow, generate_windows
+from app.locations import list_birth_cities, resolve_birth_place
 from app.rules import Rule, validate_rule
 from app.saju import Chart, Pillar, calculate_chart
 from app.store import Store
@@ -28,6 +31,7 @@ class Publisher(Protocol):
         calendar_id: str,
         slug: str,
         calendar_name: str,
+        visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult: ...
 
@@ -38,16 +42,23 @@ class UnavailablePublisher:
         calendar_id: str,
         slug: str,
         calendar_name: str,
+        visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult:
-        del calendar_id, slug, calendar_name, windows
+        del calendar_id, slug, calendar_name, visibility, windows
         raise RuntimeError("CalDAV publisher credentials are not configured")
 
 
 class ProfileCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    birth_local: datetime
+    birth_calendar: Literal["solar", "lunar"] = "solar"
+    birth_year: int = Field(ge=1000, le=2050)
+    birth_month: int = Field(ge=1, le=12)
+    birth_day: int = Field(ge=1, le=31)
+    birth_time: time
+    is_leap_month: bool = False
     gender: Literal["female", "male", "unspecified"] = "unspecified"
+    birth_city: str | None = Field(default=None, max_length=80)
     timezone: str = Field(default="Asia/Seoul", min_length=1, max_length=80)
     time_mode: Literal["civil", "true_solar"] = "civil"
     longitude: float | None = Field(default=None, ge=-180, le=180)
@@ -61,12 +72,28 @@ class CalendarCreate(BaseModel):
         max_length=80,
         pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
     )
+    visibility: Literal["private", "confidential", "public"] = "private"
     rule: dict[str, object]
 
 
 class DateRange(BaseModel):
-    start_date: date
-    end_date: date
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+def _now(zone: ZoneInfo) -> datetime:
+    return datetime.now(zone)
+
+
+def _resolve_date_range(
+    requested: DateRange,
+    zone: ZoneInfo,
+    now: datetime | None = None,
+) -> tuple[date, date]:
+    current = now or _now(zone)
+    start = requested.start_date or current.astimezone(zone).date()
+    end = requested.end_date or start + timedelta(days=365)
+    return start, end
 
 
 def _pillar_json(pillar: Pillar) -> dict[str, str]:
@@ -76,6 +103,10 @@ def _pillar_json(pillar: Pillar) -> dict[str, str]:
         "ganzhi": pillar.ganzhi,
         "stem_element": pillar.stem_element,
         "branch_element": pillar.branch_element,
+        "stem_korean": pillar.stem_korean,
+        "stem_description": pillar.stem_description,
+        "branch_korean": pillar.branch_korean,
+        "branch_description": pillar.branch_description,
     }
 
 
@@ -111,6 +142,10 @@ def _calendar_context(
     try:
         rule = validate_rule(dict(calendar["rule"]))
         natal = _profile_chart(profile)
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422, detail="저장된 시간대 정보를 사용할 수 없습니다"
+        ) from error
     except (TypeError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return calendar, profile, rule, natal
@@ -123,15 +158,25 @@ def _windows(
 ) -> tuple[dict[str, object], list[MatchingWindow]]:
     calendar, profile, rule, natal = _calendar_context(store, calendar_id)
     try:
+        timezone = str(profile["timezone"])
+        zone = ZoneInfo(timezone)
+        current = _now(zone)
+        start_date, end_date = _resolve_date_range(requested, zone, current)
         windows = generate_windows(
             rule,
             natal,
-            requested.start_date,
-            requested.end_date,
-            str(profile["timezone"]),
+            start_date,
+            end_date,
+            timezone,
             str(profile["time_mode"]),
             float(profile["longitude"]) if profile["longitude"] is not None else None,
         )
+        if requested.start_date is None:
+            windows = [window for window in windows if window.end > current]
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(
+            status_code=422, detail="저장된 시간대 정보를 사용할 수 없습니다"
+        ) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return calendar, windows
@@ -200,26 +245,56 @@ def create_app(
     def list_profiles() -> list[dict[str, object]]:
         return metadata_store.list_profiles()
 
+    @api.get("/locations")
+    def list_locations() -> list[dict[str, str]]:
+        return list_birth_cities()
+
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
     def create_profile(requested: ProfileCreate) -> dict[str, object]:
-        if requested.birth_local.tzinfo is not None:
-            raise HTTPException(status_code=422, detail="birth_local must be local wall time")
         try:
-            chart = calculate_chart(
-                requested.birth_local,
+            birth_local = normalize_birth(
+                BirthInput(
+                    calendar=requested.birth_calendar,
+                    year=requested.birth_year,
+                    month=requested.birth_month,
+                    day=requested.birth_day,
+                    at=requested.birth_time,
+                    is_leap_month=requested.is_leap_month,
+                )
+            )
+            place = resolve_birth_place(
+                requested.birth_city,
                 requested.timezone,
                 requested.time_mode,
                 requested.longitude,
             )
+            chart = calculate_chart(
+                birth_local,
+                place.timezone,
+                requested.time_mode,
+                place.longitude,
+            )
+        except ZoneInfoNotFoundError as error:
+            raise HTTPException(
+                status_code=422, detail="입력한 시간대 정보를 사용할 수 없습니다"
+            ) from error
         except (ValueError, OSError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return metadata_store.create_profile(
             name=requested.name,
-            birth_local=requested.birth_local,
+            birth_calendar=requested.birth_calendar,
+            birth_year=requested.birth_year,
+            birth_month=requested.birth_month,
+            birth_day=requested.birth_day,
+            birth_time=requested.birth_time.isoformat(),
+            is_leap_month=requested.is_leap_month,
+            birth_local=birth_local,
+            birth_city=place.city_id,
+            birth_city_name=place.city_name,
             gender=requested.gender,
-            timezone=requested.timezone,
+            timezone=place.timezone,
             time_mode=requested.time_mode,
-            longitude=requested.longitude,
+            longitude=place.longitude,
             chart=_chart_json(chart),
         )
 
@@ -242,6 +317,7 @@ def create_app(
                 profile_id=requested.profile_id,
                 name=requested.name,
                 slug=requested.slug,
+                visibility=requested.visibility,
                 rule=requested.rule,
             )
         except ValueError as error:
@@ -265,6 +341,8 @@ def create_app(
                     "end": window.end.isoformat(),
                     "day_pillar": window.chart.day.ganzhi,
                     "hour_pillar": window.chart.hour.ganzhi,
+                    "day_branch_korean": window.chart.day.branch_korean,
+                    "hour_stem_korean": window.chart.hour.stem_korean,
                 }
                 for window in windows
             ],
@@ -278,8 +356,11 @@ def create_app(
                 calendar_id,
                 str(calendar["slug"]),
                 str(calendar["name"]),
+                str(calendar["visibility"]),
                 windows,
             )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
         except RuntimeError as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
         metadata_store.mark_synced(calendar_id)

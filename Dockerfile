@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,11 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp
 
 WORKDIR /srv/saju-caldav
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock requirements.lock README.md ./
 COPY app ./app
+COPY lunar_python ./lunar_python
 COPY radicale ./radicale
 COPY scripts ./scripts
-RUN python -m pip install --no-cache-dir . \
+RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock \
     && mkdir -p /data/app /data/radicale \
     && chown -R 10001:10001 /srv/saju-caldav /data
 

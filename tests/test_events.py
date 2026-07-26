@@ -8,37 +8,37 @@ from app.saju import calculate_chart
 
 
 def _natal_chart():
-    return calculate_chart(datetime(1990, 6, 15, 8, 30), "Asia/Seoul", "civil", None)
+    return calculate_chart(datetime(2000, 1, 1, 12, 15), "Asia/Seoul", "civil", None)
 
 
-def _hai_day_ren_hour_rule():
+def _public_example_rule():
     return validate_rule(
         {
             "logic": "all",
             "predicates": [
                 {"field": "day.branch", "source": "natal", "value": "day.branch"},
-                {"field": "hour.stem", "source": "literal", "value": "壬"},
+                {"field": "hour.stem", "source": "literal", "value": "戊"},
             ],
         }
     )
 
 
-def test_acceptance_rule_generates_the_renchen_window() -> None:
+def test_rule_generates_the_expected_public_example_window() -> None:
     windows = generate_windows(
-        _hai_day_ren_hour_rule(),
+        _public_example_rule(),
         _natal_chart(),
-        date(1990, 6, 15),
-        date(1990, 6, 15),
+        date(2000, 1, 1),
+        date(2000, 1, 1),
         "Asia/Seoul",
         "civil",
         None,
     )
 
     assert len(windows) == 1
-    assert windows[0].start.timetz().replace(tzinfo=None) == time(7)
-    assert windows[0].end.timetz().replace(tzinfo=None) == time(9)
-    assert windows[0].chart.day.ganzhi == "辛亥"
-    assert windows[0].chart.hour.ganzhi == "壬辰"
+    assert windows[0].start.timetz().replace(tzinfo=None) == time(11)
+    assert windows[0].end.timetz().replace(tzinfo=None) == time(13)
+    assert windows[0].chart.day.ganzhi == "戊午"
+    assert windows[0].chart.hour.ganzhi == "戊午"
 
 
 def test_zi_hour_is_split_at_civil_midnight() -> None:
@@ -54,8 +54,8 @@ def test_zi_hour_is_split_at_civil_midnight() -> None:
     windows = generate_windows(
         rule,
         _natal_chart(),
-        date(1990, 6, 15),
-        date(1990, 6, 15),
+        date(2000, 1, 1),
+        date(2000, 1, 1),
         "Asia/Seoul",
         "civil",
         None,
@@ -66,23 +66,23 @@ def test_zi_hour_is_split_at_civil_midnight() -> None:
 
 def test_true_solar_mode_shifts_civil_calendar_boundaries() -> None:
     windows = generate_windows(
-        _hai_day_ren_hour_rule(),
+        _public_example_rule(),
         _natal_chart(),
-        date(1990, 6, 15),
-        date(1990, 6, 15),
+        date(2000, 1, 1),
+        date(2000, 1, 1),
         "Asia/Seoul",
         "true_solar",
         126.978,
     )
 
     assert len(windows) == 1
-    assert time(7, 20) < windows[0].start.timetz().replace(tzinfo=None) < time(7, 45)
+    assert time(11, 20) < windows[0].start.timetz().replace(tzinfo=None) < time(11, 50)
 
 
 def test_generation_range_is_bounded() -> None:
     with pytest.raises(ValueError, match="730 days"):
         generate_windows(
-            _hai_day_ren_hour_rule(),
+            _public_example_rule(),
             _natal_chart(),
             date(2026, 1, 1),
             date(2028, 1, 1),
@@ -90,4 +90,3 @@ def test_generation_range_is_bounded() -> None:
             "civil",
             None,
         )
-
