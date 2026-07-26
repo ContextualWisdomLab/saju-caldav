@@ -8,7 +8,7 @@ dependencies = [
   "bcrypt==5.0.0",
   "fastapi==0.139.2",
   "httpx==0.28.1",
-  "icalendar==7.2.0",
+  "icalendar==7.2.2",
   "korean-lunar-calendar==0.4.0",
   "radicale==3.7.6",
   "tzdata==2026.3",
