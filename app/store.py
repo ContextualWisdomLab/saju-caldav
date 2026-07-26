@@ -33,6 +33,7 @@ class Store:
                     birth_month INTEGER,
                     birth_day INTEGER,
                     birth_time TEXT,
+                    birth_time_known INTEGER NOT NULL DEFAULT 1,
                     is_leap_month INTEGER NOT NULL DEFAULT 0,
                     birth_city TEXT,
                     birth_city_name TEXT,
@@ -71,6 +72,11 @@ class Store:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_day INTEGER")
             if "birth_time" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_time TEXT")
+            if "birth_time_known" not in profile_columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN birth_time_known "
+                    "INTEGER NOT NULL DEFAULT 1"
+                )
             if "is_leap_month" not in profile_columns:
                 connection.execute(
                     "ALTER TABLE profiles ADD COLUMN is_leap_month "
@@ -88,6 +94,15 @@ class Store:
                     "ALTER TABLE calendars ADD COLUMN visibility "
                     "TEXT NOT NULL DEFAULT 'private'"
                 )
+            if "kind" not in calendar_columns:
+                connection.execute(
+                    "ALTER TABLE calendars ADD COLUMN kind "
+                    "TEXT NOT NULL DEFAULT 'rule'"
+                )
+            if "secondary_profile_id" not in calendar_columns:
+                connection.execute(
+                    "ALTER TABLE calendars ADD COLUMN secondary_profile_id TEXT"
+                )
             connection.execute(
                 """
                 UPDATE profiles
@@ -99,12 +114,18 @@ class Store:
                     ),
                     birth_day = COALESCE(
                         birth_day, CAST(substr(birth_local, 9, 2) AS INTEGER)
-                    ),
-                    birth_time = COALESCE(birth_time, substr(birth_local, 12))
+                    )
                 WHERE birth_year IS NULL
                    OR birth_month IS NULL
                    OR birth_day IS NULL
-                   OR birth_time IS NULL
+                """
+            )
+            connection.execute(
+                """
+                UPDATE profiles
+                SET birth_time = substr(birth_local, 12)
+                WHERE birth_time_known = 1
+                  AND birth_time IS NULL
                 """
             )
 
@@ -113,6 +134,7 @@ class Store:
         if row is None:
             return None
         result = dict(row)
+        result["birth_time_known"] = bool(result["birth_time_known"])
         result["chart"] = json.loads(str(result.pop("chart_json")))
         return result
 
@@ -132,7 +154,7 @@ class Store:
         birth_year: int,
         birth_month: int,
         birth_day: int,
-        birth_time: str,
+        birth_time: str | None,
         is_leap_month: bool,
         birth_local: datetime,
         birth_city: str | None,
@@ -142,6 +164,7 @@ class Store:
         time_mode: str,
         longitude: float | None,
         chart: dict[str, object],
+        birth_time_known: bool = True,
     ) -> dict[str, object]:
         profile_id = str(uuid4())
         with self._connect() as connection:
@@ -149,9 +172,10 @@ class Store:
                 """
                 INSERT INTO profiles
                     (id, name, birth_local, birth_calendar, birth_year, birth_month,
-                     birth_day, birth_time, is_leap_month, birth_city, birth_city_name,
+                     birth_day, birth_time, birth_time_known, is_leap_month,
+                     birth_city, birth_city_name,
                      gender, timezone, time_mode, longitude, chart_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     profile_id,
@@ -162,6 +186,7 @@ class Store:
                     birth_month,
                     birth_day,
                     birth_time,
+                    int(birth_time_known),
                     int(is_leap_month),
                     birth_city,
                     birth_city_name,
@@ -192,6 +217,10 @@ class Store:
 
     def delete_profile(self, profile_id: str) -> bool:
         with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM calendars WHERE secondary_profile_id = ?",
+                (profile_id,),
+            )
             cursor = connection.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         return cursor.rowcount == 1
 
@@ -203,21 +232,26 @@ class Store:
         slug: str,
         visibility: str,
         rule: dict[str, object],
+        kind: str = "rule",
+        secondary_profile_id: str | None = None,
     ) -> dict[str, object]:
         calendar_id = str(uuid4())
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO calendars
-                    (id, profile_id, name, slug, visibility, rule_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, profile_id, secondary_profile_id, name, slug, visibility,
+                     kind, rule_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     calendar_id,
                     profile_id,
+                    secondary_profile_id,
                     name,
                     slug,
                     visibility,
+                    kind,
                     json.dumps(rule, ensure_ascii=False, separators=(",", ":")),
                     datetime.now(UTC).isoformat(),
                 ),

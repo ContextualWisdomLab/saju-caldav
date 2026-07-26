@@ -51,6 +51,45 @@ def api_json(
     return status, json.loads(raw) if raw else None
 
 
+def assert_caldav_collection(
+    caldav_base: str,
+    collection_url: str,
+    username: str,
+    password: str,
+    expected_class: bytes,
+) -> None:
+    status, listing = request(
+        "PROPFIND",
+        collection_url,
+        username,
+        password,
+        (
+            b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:">'
+            b"<d:prop><d:getetag/></d:prop></d:propfind>"
+        ),
+        "application/xml",
+        {"Depth": "1"},
+    )
+    assert status == 207 and b".ics" in listing, (status, listing[:500])
+    root = ElementTree.fromstring(listing)
+    href = next(
+        element.text
+        for element in root.iter()
+        if element.tag.endswith("href")
+        and element.text
+        and element.text.endswith(".ics")
+    )
+    status, event = request(
+        "GET",
+        urljoin(caldav_base.rstrip("/") + "/", href.lstrip("/")),
+        username,
+        password,
+    )
+    assert status == 200, (status, event[:500])
+    assert b"CLASS:" + expected_class in event
+    assert b"X-SAJU" not in event
+
+
 def main() -> None:
     app_base = os.environ.get("APP_BASE_URL", "http://127.0.0.1:8000")
     app_user = os.environ["APP_USERNAME"]
@@ -68,7 +107,11 @@ def main() -> None:
         raise ValueError("SMOKE_VISIBILITY must be private, confidential, or public")
     suffix = f"{int(time.time())}-{os.getpid()}"
     profile_id = ""
+    secondary_profile_id = ""
     collection_url = f"{caldav_base.rstrip('/')}/{quote(caldav_user, safe='')}/smoke-{suffix}/"
+    pair_collection_url = (
+        f"{caldav_base.rstrip('/')}/{quote(caldav_user, safe='')}/pair-smoke-{suffix}/"
+    )
     private_birth = os.environ.get("PRIVATE_BIRTH_LOCAL")
     birth_local = (
         datetime.fromisoformat(private_birth)
@@ -170,40 +213,120 @@ def main() -> None:
         assert status == 200 and isinstance(synced, dict), (status, synced)
         assert synced["event_count"] == preview["count"]
 
-        status, listing = request(
-            "PROPFIND",
+        assert_caldav_collection(
+            caldav_base,
             collection_url,
             caldav_user,
             caldav_password,
-            (
-                b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:">'
-                b"<d:prop><d:getetag/></d:prop></d:propfind>"
-            ),
-            "application/xml",
-            {"Depth": "1"},
+            visibility_classes[visibility],
         )
-        assert status == 207 and b".ics" in listing, (status, listing[:500])
-        root = ElementTree.fromstring(listing)
-        href = next(
-            element.text
-            for element in root.iter()
-            if element.tag.endswith("href")
-            and element.text
-            and element.text.endswith(".ics")
+
+        status, secondary_profile = api_json(
+            "POST",
+            app_base,
+            "/api/profiles",
+            app_user,
+            app_password,
+            {
+                "name": f"pair-smoke-{suffix}",
+                "birth_calendar": "lunar",
+                "birth_year": 2000,
+                "birth_month": 1,
+                "birth_day": 2,
+                "birth_time": None,
+                "birth_time_known": False,
+                "is_leap_month": False,
+                "gender": "unspecified",
+                "birth_city": "seoul",
+                "timezone": "Asia/Seoul",
+                "time_mode": "civil",
+                "longitude": None,
+            },
         )
-        status, event = request(
-            "GET",
-            urljoin(caldav_base.rstrip("/") + "/", href.lstrip("/")),
+        assert status == 201 and isinstance(secondary_profile, dict), (
+            status,
+            secondary_profile,
+        )
+        assert secondary_profile["birth_time"] is None
+        assert secondary_profile["birth_time_known"] is False
+        secondary_chart = secondary_profile["chart"]
+        assert isinstance(secondary_chart, dict)
+        assert secondary_chart["hour"] is None
+        assert isinstance(secondary_chart["day"], dict)
+        secondary_profile_id = str(secondary_profile["id"])
+
+        status, pair_preview = api_json(
+            "POST",
+            app_base,
+            "/api/compatibility/preview",
+            app_user,
+            app_password,
+            {
+                "primary_profile_id": profile_id,
+                "secondary_profile_id": secondary_profile_id,
+                "limit": 12,
+            },
+        )
+        assert status == 200 and isinstance(pair_preview, dict), (status, pair_preview)
+        assert int(pair_preview["count"]) > 0
+
+        status, pair_calendar = api_json(
+            "POST",
+            app_base,
+            "/api/compatibility/calendars",
+            app_user,
+            app_password,
+            {
+                "primary_profile_id": profile_id,
+                "secondary_profile_id": secondary_profile_id,
+                "name": "둘이 좋은 시간",
+                "slug": f"pair-smoke-{suffix}",
+                "visibility": visibility,
+                "limit": 12,
+            },
+        )
+        assert status == 201 and isinstance(pair_calendar, dict), (
+            status,
+            pair_calendar,
+        )
+        status, pair_synced = api_json(
+            "POST",
+            app_base,
+            f"/api/calendars/{pair_calendar['id']}/sync",
+            app_user,
+            app_password,
+            {},
+        )
+        assert status == 200 and isinstance(pair_synced, dict), (
+            status,
+            pair_synced,
+        )
+        assert pair_synced["event_count"] == pair_preview["count"]
+        assert_caldav_collection(
+            caldav_base,
+            pair_collection_url,
             caldav_user,
             caldav_password,
+            visibility_classes[visibility],
         )
-        assert status == 200, (status, event[:500])
-        assert b"CLASS:" + visibility_classes[visibility] in event
-        assert b"X-SAJU" not in event
-        print(f"SAJU_CALDAV_SMOKE_OK event_count={preview['count']}")
+        print(
+            "SAJU_CALDAV_SMOKE_OK "
+            f"rule_event_count={preview['count']} "
+            f"pair_event_count={pair_preview['count']}"
+        )
     finally:
         if collection_url:
             request("DELETE", collection_url, caldav_user, caldav_password)
+        if pair_collection_url:
+            request("DELETE", pair_collection_url, caldav_user, caldav_password)
+        if secondary_profile_id:
+            api_json(
+                "DELETE",
+                app_base,
+                f"/api/profiles/{secondary_profile_id}",
+                app_user,
+                app_password,
+            )
         if profile_id:
             api_json(
                 "DELETE",
