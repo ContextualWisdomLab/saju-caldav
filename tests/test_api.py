@@ -167,6 +167,7 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert "둘이 좋은 날과 시간 찾기" in page.text
     assert "사주를 잘 몰라도 됩니다" in page.text
     assert "태어난 시각을 모릅니다" in page.text
+    assert "생활 시간" in page.text
     assert 'id="compatibility-result"' in page.text
     assert "출생 도시" in page.text
     assert 'name="longitude"' not in page.text
@@ -379,12 +380,18 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     assert preview.status_code == 200, preview.text
     payload = preview.json()
     assert payload["method"] == "balanced_branch_harmony"
+    assert payload["include_overnight"] is False
     assert payload["primary_name"] == "공개 테스트 예시"
     assert payload["secondary_name"] == "두 번째 공개 예시"
     assert 1 <= payload["count"] <= 8
     assert all(event["score"] >= 60 for event in payload["events"])
     assert all(event["label"].endswith("시간") for event in payload["events"])
     assert all(event["reasons"] for event in payload["events"])
+    assert all(
+        datetime.fromisoformat(event["start"]).hour >= 9
+        and datetime.fromisoformat(event["end"]).hour <= 23
+        for event in payload["events"]
+    )
 
     created = client.post(
         "/api/compatibility/calendars",
@@ -396,12 +403,14 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
             "slug": "good-time-together",
             "visibility": "private",
             "limit": 8,
+            "include_overnight": True,
         },
     )
     assert created.status_code == 201, created.text
     calendar = created.json()
     assert calendar["kind"] == "compatibility"
     assert calendar["secondary_profile_id"] == secondary["id"]
+    assert calendar["rule"]["include_overnight"] is True
 
     calendar_preview = client.post(
         f"/api/calendars/{calendar['id']}/preview",
@@ -409,6 +418,7 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
         json={"start_date": "2000-01-01", "end_date": "2000-01-31"},
     )
     assert calendar_preview.status_code == 200, calendar_preview.text
+    assert calendar_preview.json()["include_overnight"] is True
     assert calendar_preview.json()["events"][0]["reasons"]
 
     synced = client.post(

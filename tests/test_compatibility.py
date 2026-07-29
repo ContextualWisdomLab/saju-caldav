@@ -98,6 +98,43 @@ def test_generator_returns_at_most_one_upcoming_time_per_day() -> None:
     assert all(candidate.score >= 60 for candidate in candidates)
 
 
+def test_generator_defaults_to_practical_hours_and_can_include_overnight() -> None:
+    practical = generate_compatibility_candidates(
+        _chart("子"),
+        _chart("子"),
+        "나",
+        "상대",
+        date(2026, 7, 29),
+        date(2027, 7, 29),
+        "Asia/Seoul",
+        "civil",
+        None,
+        limit=96,
+    )
+    all_day = generate_compatibility_candidates(
+        _chart("子"),
+        _chart("子"),
+        "나",
+        "상대",
+        date(2026, 7, 29),
+        date(2027, 7, 29),
+        "Asia/Seoul",
+        "civil",
+        None,
+        limit=96,
+        include_overnight=True,
+    )
+
+    assert practical
+    assert {
+        (candidate.window.start.hour, candidate.window.end.hour)
+        for candidate in practical
+    } == {
+        (15, 17),
+    }
+    assert any(candidate.window.start.hour == 1 for candidate in all_day)
+
+
 def test_generator_applies_current_time_before_choosing_each_days_best() -> None:
     primary = calculate_chart(
         datetime(2000, 1, 1, 12, 15),
