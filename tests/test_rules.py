@@ -35,3 +35,64 @@ def test_unknown_rule_fields_are_rejected() -> None:
                 ],
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"logic": "neither", "predicates": [{}]}, "logic"),
+        ({"logic": "all", "predicates": []}, "predicates"),
+        ({"logic": "all", "predicates": ["bad"]}, "object"),
+        (
+            {
+                "logic": "all",
+                "predicates": [{"field": "day.stem", "source": "bad", "value": "甲"}],
+            },
+            "source",
+        ),
+        (
+            {
+                "logic": "all",
+                "predicates": [{"field": "day.stem", "source": "literal", "value": 1}],
+            },
+            "string",
+        ),
+        (
+            {
+                "logic": "all",
+                "predicates": [{"field": "day.stem", "source": "literal", "value": "子"}],
+            },
+            "invalid literal",
+        ),
+        (
+            {
+                "logic": "all",
+                "predicates": [{"field": "day.stem", "source": "natal", "value": "bad"}],
+            },
+            "unsupported natal",
+        ),
+        (
+            {
+                "logic": "all",
+                "predicates": [{"field": "day.stem", "source": "natal", "value": "hour.branch"}],
+            },
+            "same value type",
+        ),
+    ],
+)
+def test_invalid_rule_shapes_are_rejected(data: dict[str, object], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        validate_rule(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("day.stem_element", "土"), ("day.branch_element", "火")],
+)
+def test_element_literals_are_supported(field: str, value: str) -> None:
+    assert validate_rule(
+        {
+            "logic": "any",
+            "predicates": [{"field": field, "source": "literal", "value": value}],
+        }
+    )
