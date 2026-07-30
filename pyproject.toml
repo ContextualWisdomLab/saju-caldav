@@ -17,6 +17,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "coverage==7.14.1",
   "pytest==9.0.2",
   "ruff==0.16.0",
 ]
@@ -31,6 +32,14 @@ packages = ["app", "lunar_python"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
 
 [tool.ruff]
 exclude = ["lunar_python"]
