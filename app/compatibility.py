@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from app.events import MatchingWindow, iter_chart_windows
 from app.saju import Chart
@@ -161,6 +161,7 @@ def generate_compatibility_candidates(
     longitude: float | None,
     limit: int = 24,
     not_before: datetime | None = None,
+    include_overnight: bool = False,
 ) -> list[CompatibilityCandidate]:
     """Return the highest-scoring candidate per day, breaking ties by start time."""
 
@@ -176,6 +177,12 @@ def generate_compatibility_candidates(
         longitude,
     ):
         if not_before is not None and window.end <= not_before:
+            continue
+        if not include_overnight and (
+            window.start.date() != window.end.date()
+            or window.start.time() < time(9)
+            or window.end.time() > time(23)
+        ):
             continue
         candidate = score_window(
             window,

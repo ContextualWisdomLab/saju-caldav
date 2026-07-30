@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfoNotFoundError
 
 import pytest
 
-from app.saju import Pillar, calculate_chart
+from app.saju import Pillar, _true_solar_time, calculate_chart
 
 
 def test_public_example_chart_is_deterministic() -> None:
@@ -49,6 +49,20 @@ def test_invalid_timezone_and_longitude_are_rejected() -> None:
         calculate_chart(datetime(2000, 1, 1, 12, 15), "Mars/Olympus", "civil", None)
     with pytest.raises(ValueError, match="between -180 and 180"):
         calculate_chart(datetime(2000, 1, 1, 12, 15), "Asia/Seoul", "true_solar", 181)
+
+
+def test_invalid_time_mode_and_timezone_without_offset_are_rejected() -> None:
+    class NoOffset(tzinfo):
+        def utcoffset(self, dt):
+            return None
+
+        def dst(self, dt):
+            return None
+
+    with pytest.raises(ValueError, match="time_mode"):
+        calculate_chart(datetime(2000, 1, 1, 12, 15), "Asia/Seoul", "bad", None)
+    with pytest.raises(ValueError, match="no UTC offset"):
+        _true_solar_time(datetime(2000, 1, 1, 12, 15), NoOffset(), 126.978)
 
 
 def test_midnight_changes_the_day_inside_the_split_zi_hour() -> None:
