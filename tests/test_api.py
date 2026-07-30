@@ -692,11 +692,18 @@ def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:
 
 def test_api_not_found_duplicate_and_unavailable_publisher_paths(tmp_path: Path) -> None:
     client, _ = _client(tmp_path)
-    assert client.get("/api/calendars", auth=_auth()).json() == []
-    assert client.delete("/api/profiles/missing", auth=_auth()).status_code == 404
-    assert client.delete("/api/calendars/missing", auth=_auth()).status_code == 404
-    assert client.post("/api/calendars/missing/preview", auth=_auth(), json={}).status_code == 404
-    assert client.post("/api/calendars/missing/sync", auth=_auth(), json={}).status_code == 404
+    calendars = client.get("/api/calendars", auth=_auth())
+    missing_profile = client.delete("/api/profiles/missing", auth=_auth())
+    missing_calendar = client.delete("/api/calendars/missing", auth=_auth())
+    missing_preview = client.post(
+        "/api/calendars/missing/preview", auth=_auth(), json={}
+    )
+    missing_sync = client.post("/api/calendars/missing/sync", auth=_auth(), json={})
+    assert calendars.json() == []
+    assert missing_profile.status_code == 404
+    assert missing_calendar.status_code == 404
+    assert missing_preview.status_code == 404
+    assert missing_sync.status_code == 404
 
     profile = _create_profile(client)
     calendar = _create_calendar(client, str(profile["id"]))
@@ -735,9 +742,12 @@ def test_api_not_found_duplicate_and_unavailable_publisher_paths(tmp_path: Path)
     )
     assert failed_sync.status_code == 502
 
-    assert client.delete(f"/api/calendars/{calendar['id']}", auth=_auth()).status_code == 204
-    assert client.delete(f"/api/calendars/{calendar['id']}", auth=_auth()).status_code == 404
-    assert client.delete(f"/api/profiles/{profile['id']}", auth=_auth()).status_code == 204
+    first_delete = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+    second_delete = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+    profile_delete = client.delete(f"/api/profiles/{profile['id']}", auth=_auth())
+    assert first_delete.status_code == 204
+    assert second_delete.status_code == 404
+    assert profile_delete.status_code == 204
 
 
 def test_invalid_birth_date_and_missing_static_index_are_reported(tmp_path: Path) -> None:
