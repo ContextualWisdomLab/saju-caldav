@@ -389,8 +389,6 @@ def create_app(
         calculation_time = (
             requested.birth_time if requested.birth_time_known else time(12, 0)
         )
-        if calculation_time is None:
-            raise RuntimeError("validated birth time is missing")
         try:
             birth_local = normalize_birth(
                 BirthInput(

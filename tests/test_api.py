@@ -1,8 +1,10 @@
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main_module
@@ -121,23 +123,25 @@ def _create_unknown_time_profile(client: TestClient) -> dict[str, object]:
     return response.json()
 
 
+def _calendar_payload(profile_id: str) -> dict[str, object]:
+    return {
+        "profile_id": profile_id,
+        "name": "나의 맞춤 시간",
+        "slug": "my-custom-hours",
+        "visibility": "confidential",
+        "rule": {
+            "logic": "all",
+            "predicates": [
+                {"field": "day.branch", "source": "natal", "value": "day.branch"},
+                {"field": "hour.stem", "source": "literal", "value": "戊"},
+            ],
+        },
+    }
+
+
 def _create_calendar(client: TestClient, profile_id: str) -> dict[str, object]:
     response = client.post(
-        "/api/calendars",
-        auth=_auth(),
-        json={
-            "profile_id": profile_id,
-            "name": "나의 맞춤 시간",
-            "slug": "my-custom-hours",
-            "visibility": "confidential",
-            "rule": {
-                "logic": "all",
-                "predicates": [
-                    {"field": "day.branch", "source": "natal", "value": "day.branch"},
-                    {"field": "hour.stem", "source": "literal", "value": "戊"},
-                ],
-            },
-        },
+        "/api/calendars", auth=_auth(), json=_calendar_payload(profile_id)
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -684,3 +688,209 @@ def test_invalid_rule_and_missing_profile_are_rejected(tmp_path: Path) -> None:
         },
     )
     assert missing.status_code == 404
+
+
+def test_api_not_found_duplicate_and_unavailable_publisher_paths(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    assert client.get("/api/calendars", auth=_auth()).json() == []
+    assert client.delete("/api/profiles/missing", auth=_auth()).status_code == 404
+    assert client.delete("/api/calendars/missing", auth=_auth()).status_code == 404
+    assert client.post("/api/calendars/missing/preview", auth=_auth(), json={}).status_code == 404
+    assert client.post("/api/calendars/missing/sync", auth=_auth(), json={}).status_code == 404
+
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    duplicate = client.post(
+        "/api/calendars",
+        auth=_auth(),
+        json=_calendar_payload(str(profile["id"])),
+    )
+    assert duplicate.status_code == 409
+    secondary = _create_secondary_profile(client)
+    compatibility_duplicate = client.post(
+        "/api/compatibility/calendars",
+        auth=_auth(),
+        json={
+            "primary_profile_id": profile["id"],
+            "secondary_profile_id": secondary["id"],
+            "name": "중복 달력",
+            "slug": "my-custom-hours",
+        },
+    )
+    assert compatibility_duplicate.status_code == 409
+
+    unavailable_app = main_module.create_app(
+        store=Store(tmp_path / "unavailable.db"),
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=main_module.UnavailablePublisher(),
+    )
+    unavailable = TestClient(unavailable_app)
+    unavailable_profile = _create_profile(unavailable)
+    unavailable_calendar = _create_calendar(unavailable, str(unavailable_profile["id"]))
+    failed_sync = unavailable.post(
+        f"/api/calendars/{unavailable_calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+    )
+    assert failed_sync.status_code == 502
+
+    assert client.delete(f"/api/calendars/{calendar['id']}", auth=_auth()).status_code == 204
+    assert client.delete(f"/api/calendars/{calendar['id']}", auth=_auth()).status_code == 404
+    assert client.delete(f"/api/profiles/{profile['id']}", auth=_auth()).status_code == 204
+
+
+def test_invalid_birth_date_and_missing_static_index_are_reported(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+    invalid = client.post(
+        "/api/profiles",
+        auth=_auth(),
+        json={
+            "name": "잘못된 날짜",
+            "birth_year": 2000,
+            "birth_month": 2,
+            "birth_day": 31,
+            "birth_time": "12:00:00",
+        },
+    )
+    assert invalid.status_code == 422
+
+    fallback = TestClient(
+        main_module.create_app(
+            store=Store(tmp_path / "fallback.db"),
+            username="operator",
+            password="correct-horse-battery-staple",
+            publisher=RecordingPublisher(),
+            static_dir=tmp_path / "missing-assets",
+        )
+    )
+    response = fallback.get("/", auth=_auth())
+    assert response.status_code == 200
+    assert response.text == "Saju CalDAV operator console"
+
+
+def test_publisher_is_built_from_complete_environment(monkeypatch) -> None:
+    expected = object()
+    monkeypatch.setenv("CALDAV_BASE_URL", "https://example.com/caldav")
+    monkeypatch.setenv("CALDAV_USERNAME", "operator")
+    monkeypatch.setenv("CALDAV_PASSWORD", "secret")
+    monkeypatch.setattr(main_module, "CalDavPublisher", lambda *args: expected)
+
+    assert main_module._publisher_from_environment() is expected
+
+
+def test_internal_context_errors_are_mapped_to_http_statuses(tmp_path: Path, monkeypatch) -> None:
+    client, _ = _client(tmp_path)
+    primary_response = _create_profile(client)
+    secondary_response = _create_secondary_profile(client)
+    calendar_response = _create_calendar(client, str(primary_response["id"]))
+    store = Store(tmp_path / "saju.db")
+    primary = store.get_profile(str(primary_response["id"]))
+    secondary = store.get_profile(str(secondary_response["id"]))
+    calendar = store.get_calendar(str(calendar_response["id"]))
+    assert primary and secondary and calendar
+    chart = main_module._profile_chart(primary)
+    rule = main_module.validate_rule(dict(calendar["rule"]))
+
+    def assert_status(status_code: int, function) -> None:
+        with pytest.raises(main_module.HTTPException) as captured:
+            function()
+        assert captured.value.status_code == status_code
+
+    assert_status(
+        404,
+        lambda: main_module._calendar_context(
+            SimpleNamespace(get_calendar=lambda calendar_id: None), "missing"
+        ),
+    )
+    assert_status(
+        404,
+        lambda: main_module._calendar_context(
+            SimpleNamespace(
+                get_calendar=lambda calendar_id: calendar,
+                get_profile=lambda profile_id: None,
+            ),
+            "missing-profile",
+        ),
+    )
+    invalid_rule_calendar = {**calendar, "rule": {"logic": "bad"}}
+    assert_status(
+        422,
+        lambda: main_module._calendar_context(
+            SimpleNamespace(
+                get_calendar=lambda calendar_id: invalid_rule_calendar,
+                get_profile=lambda profile_id: primary,
+            ),
+            str(calendar["id"]),
+        ),
+    )
+    assert_status(
+        404,
+        lambda: main_module._compatibility_context(store, "missing", "also-missing"),
+    )
+
+    bad_zone = {**primary, "timezone": "Mars/Olympus"}
+    assert_status(
+        422,
+        lambda: main_module._compatibility_context(
+            SimpleNamespace(
+                get_profile=lambda profile_id: bad_zone if profile_id == "primary" else secondary
+            ),
+            "primary",
+            "secondary",
+        ),
+    )
+    bad_birth = {**primary, "birth_local": "not-a-date"}
+    assert_status(
+        422,
+        lambda: main_module._compatibility_context(
+            SimpleNamespace(
+                get_profile=lambda profile_id: bad_birth if profile_id == "primary" else secondary
+            ),
+            "primary",
+            "secondary",
+        ),
+    )
+
+    compatibility_request = main_module.CompatibilityRequest(
+        primary_profile_id=str(primary["id"]),
+        secondary_profile_id=str(secondary["id"]),
+        start_date=date(2000, 1, 1),
+        end_date=date(2000, 1, 1),
+    )
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            main_module,
+            "_compatibility_context",
+            lambda *args: (bad_zone, secondary, chart, chart),
+        )
+        assert_status(
+            422,
+            lambda: main_module._compatibility_candidates(store, compatibility_request),
+        )
+    reversed_compatibility = compatibility_request.model_copy(
+        update={"start_date": date(2000, 1, 2), "end_date": date(2000, 1, 1)}
+    )
+    assert_status(
+        422,
+        lambda: main_module._compatibility_candidates(store, reversed_compatibility),
+    )
+
+    date_range = main_module.DateRange(start_date=date(2000, 1, 1), end_date=date(2000, 1, 1))
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            main_module,
+            "_calendar_context",
+            lambda *args: (calendar, bad_zone, rule, chart),
+        )
+        assert_status(
+            422,
+            lambda: main_module._windows(store, str(calendar["id"]), date_range),
+        )
+    reversed_range = date_range.model_copy(
+        update={"start_date": date(2000, 1, 2), "end_date": date(2000, 1, 1)}
+    )
+    assert_status(
+        422,
+        lambda: main_module._windows(store, str(calendar["id"]), reversed_range),
+    )

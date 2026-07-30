@@ -3,6 +3,8 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from app.store import Store
 
 
@@ -48,9 +50,11 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
     assert store.get_calendar(calendar["id"])["rule"]["predicates"][1]["value"] == "戊"
     assert len(store.list_profiles()) == 1
     assert len(store.list_calendars(profile["id"])) == 1
+    assert len(store.list_calendars()) == 1
 
     assert store.delete_profile(profile["id"])
     assert store.get_calendar(calendar["id"]) is None
+    assert not store.delete_calendar(str(calendar["id"]))
 
 
 def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> None:
@@ -166,3 +170,44 @@ def test_unknown_birth_time_round_trip_stays_unknown_after_reinitialize(
     assert reloaded["birth_time"] is None
     assert reloaded["birth_time_known"] is False
     assert reloaded["chart"]["hour"] is None
+
+
+def test_create_defensive_checks_and_calendar_delete(tmp_path: Path, monkeypatch) -> None:
+    store = Store(tmp_path / "defensive.db")
+    store.initialize()
+    profile_arguments = {
+        "name": "방어 경로",
+        "birth_calendar": "solar",
+        "birth_year": 2000,
+        "birth_month": 1,
+        "birth_day": 1,
+        "birth_time": "12:00:00",
+        "is_leap_month": False,
+        "birth_local": datetime(2000, 1, 1, 12),
+        "birth_city": "seoul",
+        "birth_city_name": "대한민국 · 서울",
+        "gender": "unspecified",
+        "timezone": "Asia/Seoul",
+        "time_mode": "civil",
+        "longitude": None,
+        "chart": {},
+    }
+    with monkeypatch.context() as scoped:
+        scoped.setattr(store, "get_profile", lambda profile_id: None)
+        with pytest.raises(RuntimeError, match="created profile"):
+            store.create_profile(**profile_arguments)
+
+    profile = store.list_profiles()[0]
+    with monkeypatch.context() as scoped:
+        scoped.setattr(store, "get_calendar", lambda calendar_id: None)
+        with pytest.raises(RuntimeError, match="created calendar"):
+            store.create_calendar(
+                profile_id=str(profile["id"]),
+                name="방어 달력",
+                slug="defensive-calendar",
+                visibility="private",
+                rule={},
+            )
+
+    calendar = store.list_calendars()[0]
+    assert store.delete_calendar(str(calendar["id"]))

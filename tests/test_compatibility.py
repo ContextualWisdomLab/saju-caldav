@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+import pytest
+
 from app.compatibility import generate_compatibility_candidates, score_window
 from app.events import MatchingWindow
 from app.saju import Chart, Pillar, calculate_chart
@@ -219,3 +221,19 @@ def test_generator_tie_breaks_with_the_full_start_time(monkeypatch) -> None:
 
     assert len(candidates) == 1
     assert candidates[0].window.start == earlier.start
+
+
+def test_generator_rejects_out_of_range_limit() -> None:
+    with pytest.raises(ValueError, match="between 1 and 96"):
+        generate_compatibility_candidates(
+            _chart("子"),
+            _chart("子"),
+            "나",
+            "상대",
+            date(2000, 1, 1),
+            date(2000, 1, 1),
+            "Asia/Seoul",
+            "civil",
+            None,
+            limit=0,
+        )

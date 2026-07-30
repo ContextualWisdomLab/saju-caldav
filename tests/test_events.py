@@ -92,6 +92,29 @@ def test_generation_range_is_bounded() -> None:
         )
 
 
+def test_generation_rejects_reversed_range_and_incomplete_true_solar_mode() -> None:
+    with pytest.raises(ValueError, match="before start_date"):
+        list(
+            iter_chart_windows(
+                date(2000, 1, 2),
+                date(2000, 1, 1),
+                "Asia/Seoul",
+                "civil",
+                None,
+            )
+        )
+    with pytest.raises(ValueError, match="requires longitude"):
+        list(
+            iter_chart_windows(
+                date(2000, 1, 1),
+                date(2000, 1, 1),
+                "Asia/Seoul",
+                "invalid",
+                None,
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("time_mode", "longitude"),
     [("civil", None), ("true_solar", 126.978)],
