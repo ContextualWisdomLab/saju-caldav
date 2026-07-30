@@ -285,6 +285,11 @@ h2 {
   text-align: center;
 }
 
+.pair-time-scope {
+  width: min(100%, 560px);
+  margin: 24px auto 0;
+}
+
 .pair-submit {
   display: block;
   width: min(100%, 560px);
