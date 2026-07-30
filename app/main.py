@@ -90,6 +90,7 @@ class CompatibilityRequest(DateRange):
     primary_profile_id: str = Field(min_length=1, max_length=80)
     secondary_profile_id: str = Field(min_length=1, max_length=80)
     limit: int = Field(default=12, ge=1, le=96)
+    include_overnight: bool = False
 
 
 class CompatibilityCalendarCreate(BaseModel):
@@ -103,6 +104,7 @@ class CompatibilityCalendarCreate(BaseModel):
     )
     visibility: Literal["private", "confidential", "public"] = "private"
     limit: int = Field(default=36, ge=1, le=96)
+    include_overnight: bool = False
 
 
 def _now(zone: ZoneInfo) -> datetime:
@@ -226,6 +228,7 @@ def _compatibility_candidates(
             float(primary["longitude"]) if primary["longitude"] is not None else None,
             requested.limit,
             current if requested.start_date is None else None,
+            requested.include_overnight,
         )
     except ZoneInfoNotFoundError as error:
         raise HTTPException(
@@ -270,6 +273,7 @@ def _windows(
             start_date=requested.start_date,
             end_date=requested.end_date,
             limit=int(settings.get("limit", 36)),
+            include_overnight=bool(settings.get("include_overnight", False)),
         )
         _, _, candidates = _compatibility_candidates(store, requested_pair)
         return stored_calendar, [candidate.window for candidate in candidates]
@@ -385,8 +389,6 @@ def create_app(
         calculation_time = (
             requested.birth_time if requested.birth_time_known else time(12, 0)
         )
-        if calculation_time is None:
-            raise RuntimeError("validated birth time is missing")
         try:
             birth_local = normalize_birth(
                 BirthInput(
@@ -496,6 +498,7 @@ def create_app(
                 start_date=requested.start_date,
                 end_date=requested.end_date,
                 limit=int(settings.get("limit", 36)),
+                include_overnight=bool(settings.get("include_overnight", False)),
             )
             primary, secondary, candidates = _compatibility_candidates(
                 metadata_store,
@@ -506,6 +509,7 @@ def create_app(
                 "primary_name": primary["name"],
                 "secondary_name": secondary["name"],
                 "method": "balanced_branch_harmony",
+                "include_overnight": compatibility_request.include_overnight,
                 "events": [_candidate_json(candidate) for candidate in candidates],
             }
         _, windows = _windows(metadata_store, calendar_id, requested)
@@ -535,6 +539,7 @@ def create_app(
             "primary_name": primary["name"],
             "secondary_name": secondary["name"],
             "method": "balanced_branch_harmony",
+            "include_overnight": requested.include_overnight,
             "events": [_candidate_json(candidate) for candidate in candidates],
         }
 
@@ -561,6 +566,7 @@ def create_app(
                 rule={
                     "mode": "balanced_branch_harmony",
                     "limit": requested.limit,
+                    "include_overnight": requested.include_overnight,
                 },
             )
         except sqlite3.IntegrityError as error:
