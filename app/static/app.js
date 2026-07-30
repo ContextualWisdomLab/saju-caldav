@@ -251,8 +251,9 @@ function renderCalendars() {
     .map((calendar) => {
       const primary = state.profiles.find((profile) => profile.id === calendar.profile_id);
       const secondary = state.profiles.find((profile) => profile.id === calendar.secondary_profile_id);
+      const timeBasis = primary?.time_mode === "true_solar" ? "진태양시" : "민간시";
       const rule = calendar.kind === "compatibility"
-        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}에게 고르게 어울리는 시간 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
+        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}에게 고르게 어울리는 시간 · ${timeBasis} 기준 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
         : calendar.rule.predicates.map(predicateLabel).join(calendar.rule.logic === "all" ? " 그리고 " : " 또는 ");
       const synced = calendar.last_synced_at ? new Date(calendar.last_synced_at).toLocaleString("ko-KR") : "아직 동기화하지 않음";
       return `<article class="calendar-card" data-calendar-id="${escapeHtml(calendar.id)}">
@@ -327,9 +328,10 @@ async function resolvePairProfile(form, prefix) {
 
 function renderCompatibility(result, primary, secondary) {
   state.compatibility = { result, primary, secondary };
+  const timeBasis = primary.time_mode === "true_solar" ? "진태양시" : "민간시";
   $("#pair-names").textContent = `${primary.name} · ${secondary.name}`;
   $("#pair-result-count").textContent = `${result.count}개의 가까운 후보를 찾았습니다.`;
-  $("#pair-timezone").textContent = `첫 번째 사람의 ${primary.timezone} 기준 · ${result.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`;
+  $("#pair-timezone").textContent = `첫 번째 사람의 ${primary.timezone} · ${timeBasis} 기준 · ${result.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`;
   const list = $("#compatibility-list");
   if (!result.events.length) {
     list.innerHTML = result.include_overnight

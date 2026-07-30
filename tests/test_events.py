@@ -109,7 +109,7 @@ def test_generation_rejects_reversed_range_and_incomplete_true_solar_mode() -> N
                 date(2000, 1, 1),
                 date(2000, 1, 1),
                 "Asia/Seoul",
-                "invalid",
+                "true_solar",
                 None,
             )
         )

@@ -55,6 +55,28 @@ def test_request_error_reports_sanitized_reason(monkeypatch) -> None:
     assert "password-value" not in message
 
 
+def test_request_error_without_credentials_or_details_is_still_clear(monkeypatch) -> None:
+    publisher = CalDavPublisher("https://example.com/caldav", "", "")
+
+    def fail_request(*args, **kwargs):
+        del args, kwargs
+        raise httpx.ConnectError("")
+
+    monkeypatch.setattr(httpx, "request", fail_request)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"CalDAV MKCALENDAR connection failed \(ConnectError\)",
+    ):
+        publisher.sync(
+            "calendar-1",
+            "my-custom-hours",
+            "나의 맞춤 시간",
+            "private",
+            [],
+        )
+
+
 def test_unexpected_http_status_is_rejected(monkeypatch) -> None:
     publisher = CalDavPublisher("https://example.com/caldav", "caluser", "password-value")
     monkeypatch.setattr(

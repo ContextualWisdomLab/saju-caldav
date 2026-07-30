@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -391,11 +391,12 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     assert all(event["score"] >= 60 for event in payload["events"])
     assert all(event["label"].endswith("시간") for event in payload["events"])
     assert all(event["reasons"] for event in payload["events"])
-    assert all(
-        datetime.fromisoformat(event["start"]).hour >= 9
-        and datetime.fromisoformat(event["end"]).hour <= 23
-        for event in payload["events"]
-    )
+    for event in payload["events"]:
+        start = datetime.fromisoformat(event["start"])
+        end = datetime.fromisoformat(event["end"])
+        assert start.date() == end.date()
+        assert start.time() >= time(9)
+        assert end.time() <= time(23)
 
     created = client.post(
         "/api/compatibility/calendars",
