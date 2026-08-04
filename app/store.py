@@ -14,14 +14,16 @@ class Store:
         self.path = str(path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
+        connection = sqlite3.connect(self.path, timeout=10)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 10000")
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
     def initialize(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS profiles (
