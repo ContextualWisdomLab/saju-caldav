@@ -51,19 +51,23 @@ def test_runtime_lock_matches_exact_project_dependencies() -> None:
     """Keep the image's hash lock aligned with every exact runtime dependency."""
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    runtime_lock = (ROOT / "requirements.lock").read_text()
+    runtime_versions: dict[str, str] = {}
+    for line in (ROOT / "requirements.lock").read_text().splitlines():
+        if not line or line[0].isspace() or line.startswith("#") or "==" not in line:
+            continue
+        package_name, version_with_suffix = line.split("==", 1)
+        runtime_versions[package_name.casefold().replace("_", "-")] = version_with_suffix.split()[0]
 
-    missing_requirements: list[str] = []
+    mismatches: list[str] = []
     for requirement in project["project"]["dependencies"]:
-        name, separator, version = requirement.partition("==")
+        package_name, separator, expected_version = requirement.partition("==")
         assert separator == "==", f"runtime dependency must be exactly pinned: {requirement}"
-        if f"{name}=={version} \\" not in runtime_lock:
-            missing_requirements.append(requirement)
+        normalized_name = package_name.casefold().replace("_", "-")
+        actual_version = runtime_versions.get(normalized_name)
+        if actual_version != expected_version:
+            mismatches.append(f"{package_name}: expected {expected_version}, locked {actual_version}")
 
-    assert not missing_requirements, (
-        "requirements.lock is stale for exact runtime dependencies: "
-        + ", ".join(missing_requirements)
-    )
+    assert not mismatches, "requirements.lock is stale: " + "; ".join(mismatches)
 
 
 def test_location_refresh_preserves_manual_timezone_choice() -> None:
