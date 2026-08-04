@@ -5,13 +5,15 @@ from __future__ import annotations
 import os
 import secrets
 import sqlite3
+from collections.abc import Iterator
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from threading import Lock
 from typing import Literal, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -329,6 +331,9 @@ def create_app(
     operator_password = password if password is not None else os.environ.get("APP_PASSWORD", "")
     caldav_publisher = publisher or _publisher_from_environment()
     assets = static_dir or Path(__file__).with_name("static")
+    # ponytail: process-local serialization fits the single-worker deployment;
+    # use a distributed lock before adding Uvicorn workers.
+    calendar_operation_lock = Lock()
 
     application = FastAPI(
         title="Saju CalDAV",
@@ -338,6 +343,28 @@ def create_app(
         openapi_url=None,
     )
     security = HTTPBasic(auto_error=False)
+
+    @application.exception_handler(sqlite3.OperationalError)
+    def handle_database_operational_error(
+        _request: Request,
+        error: sqlite3.OperationalError,
+    ) -> JSONResponse:
+        if (getattr(error, "sqlite_errorcode", 0) & 0xFF) not in {
+            sqlite3.SQLITE_BUSY,
+            sqlite3.SQLITE_LOCKED,
+        }:
+            raise error
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "database is busy; retry shortly"},
+            headers={"Retry-After": "1"},
+        )
+
+    def serialize_calendar_operation() -> Iterator[None]:
+        with calendar_operation_lock:
+            yield
+
+    serialized_calendar_operation = Depends(serialize_calendar_operation)
 
     def require_operator(
         credentials: HTTPBasicCredentials | None = Depends(security),  # noqa: B008
@@ -444,7 +471,11 @@ def create_app(
             chart=chart_json,
         )
 
-    @api.delete("/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+    @api.delete(
+        "/profiles/{profile_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        dependencies=[serialized_calendar_operation],
+    )
     def delete_profile(profile_id: str) -> None:
         if not metadata_store.delete_profile(profile_id):
             raise HTTPException(status_code=404, detail="profile not found")
@@ -453,7 +484,11 @@ def create_app(
     def list_calendars(profile_id: str | None = None) -> list[dict[str, object]]:
         return metadata_store.list_calendars(profile_id)
 
-    @api.post("/calendars", status_code=status.HTTP_201_CREATED)
+    @api.post(
+        "/calendars",
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[serialized_calendar_operation],
+    )
     def create_calendar(requested: CalendarCreate) -> dict[str, object]:
         profile = metadata_store.get_profile(requested.profile_id)
         if profile is None:
@@ -480,7 +515,11 @@ def create_app(
         except sqlite3.IntegrityError as error:
             raise HTTPException(status_code=409, detail="calendar slug already exists") from error
 
-    @api.delete("/calendars/{calendar_id}", status_code=status.HTTP_204_NO_CONTENT)
+    @api.delete(
+        "/calendars/{calendar_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        dependencies=[serialized_calendar_operation],
+    )
     def delete_calendar(calendar_id: str) -> None:
         if not metadata_store.delete_calendar(calendar_id):
             raise HTTPException(status_code=404, detail="calendar not found")
@@ -546,6 +585,7 @@ def create_app(
     @api.post(
         "/compatibility/calendars",
         status_code=status.HTTP_201_CREATED,
+        dependencies=[serialized_calendar_operation],
     )
     def create_compatibility_calendar(
         requested: CompatibilityCalendarCreate,
@@ -575,7 +615,10 @@ def create_app(
                 detail="calendar slug already exists",
             ) from error
 
-    @api.post("/calendars/{calendar_id}/sync")
+    @api.post(
+        "/calendars/{calendar_id}/sync",
+        dependencies=[serialized_calendar_operation],
+    )
     def sync_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
         calendar, windows = _windows(metadata_store, calendar_id, requested)
         try:

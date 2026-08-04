@@ -57,6 +57,18 @@ def test_profile_and_calendar_round_trip_and_cascade(tmp_path: Path) -> None:
     assert not store.delete_calendar(str(calendar["id"]))
 
 
+def test_store_enables_wal_and_busy_timeout(tmp_path: Path) -> None:
+    store = Store(tmp_path / "concurrency.db")
+    store.initialize()
+
+    with store._connect() as connection:
+        journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+        busy_timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+
+    assert journal_mode == "wal"
+    assert busy_timeout == 10_000
+
+
 def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> None:
     database = tmp_path / "legacy.db"
     with sqlite3.connect(database) as connection:
