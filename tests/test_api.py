@@ -1,6 +1,8 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -905,3 +907,96 @@ def test_internal_context_errors_are_mapped_to_http_statuses(tmp_path: Path, mon
         422,
         lambda: main_module._windows(store, str(calendar["id"]), reversed_range),
     )
+
+
+def test_database_lock_is_retryable_but_other_operational_errors_propagate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store = Store(tmp_path / "locked.db")
+    app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=RecordingPublisher(),
+    )
+    busy_error = sqlite3.OperationalError("database is locked")
+    busy_error.sqlite_errorcode = sqlite3.SQLITE_BUSY | (2 << 8)
+    monkeypatch.setattr(store, "list_profiles", lambda: (_ for _ in ()).throw(busy_error))
+    retrying_client = TestClient(app, raise_server_exceptions=False)
+
+    busy_response = retrying_client.get("/api/profiles", auth=_auth())
+
+    assert busy_response.status_code == 503
+    assert busy_response.headers["retry-after"] == "1"
+    assert busy_response.json() == {"detail": "database is busy; retry shortly"}
+
+    io_error = sqlite3.OperationalError("disk I/O error")
+    io_error.sqlite_errorcode = sqlite3.SQLITE_IOERR
+    monkeypatch.setattr(store, "list_profiles", lambda: (_ for _ in ()).throw(io_error))
+    propagating_client = TestClient(app)
+
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+        propagating_client.get("/api/profiles", auth=_auth())
+
+
+def test_calendar_delete_waits_for_in_flight_sync(tmp_path: Path, monkeypatch) -> None:
+    class BlockingPublisher(RecordingPublisher):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = Event()
+            self.release = Event()
+
+        def sync(self, *args):
+            self.started.set()
+            if not self.release.wait(5):
+                raise TimeoutError("test did not release CalDAV sync")
+            return super().sync(*args)
+
+    store = Store(tmp_path / "serialized.db")
+    publisher = BlockingPublisher()
+    app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=publisher,
+    )
+    client = TestClient(app)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    delete_requested = Event()
+    delete_entered = Event()
+    original_delete = store.delete_calendar
+
+    def observed_delete(calendar_id: str) -> bool:
+        delete_entered.set()
+        return original_delete(calendar_id)
+
+    monkeypatch.setattr(store, "delete_calendar", observed_delete)
+
+    def sync():
+        return client.post(
+            f"/api/calendars/{calendar['id']}/sync",
+            auth=_auth(),
+            json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+        )
+
+    def delete():
+        delete_requested.set()
+        return client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        sync_future = executor.submit(sync)
+        sync_started = publisher.started.wait(5)
+        delete_future = executor.submit(delete)
+        delete_started = delete_requested.wait(5)
+        delete_reached_store_during_sync = delete_entered.wait(0.2)
+        publisher.release.set()
+        sync_response = sync_future.result(timeout=10)
+        delete_response = delete_future.result(timeout=10)
+
+    assert sync_started
+    assert delete_started
+    assert not delete_reached_store_during_sync
+    assert sync_response.status_code == 200
+    assert delete_response.status_code == 204
