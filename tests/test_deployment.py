@@ -65,7 +65,9 @@ def test_runtime_lock_matches_exact_project_dependencies() -> None:
         normalized_name = package_name.casefold().replace("_", "-")
         actual_version = runtime_versions.get(normalized_name)
         if actual_version != expected_version:
-            mismatches.append(f"{package_name}: expected {expected_version}, locked {actual_version}")
+            mismatches.append(
+                f"{package_name}: expected {expected_version}, locked {actual_version}"
+            )
 
     assert not mismatches, "requirements.lock is stale: " + "; ".join(mismatches)
 
