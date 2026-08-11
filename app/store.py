@@ -361,24 +361,38 @@ class Store:
         calendar_id = str(uuid4())
         with self._connect() as connection:
             if scope is not None:
-                profile_ids = [profile_id]
-                if secondary_profile_id is not None:
-                    profile_ids.append(secondary_profile_id)
-                placeholders = ", ".join("?" for _ in profile_ids)
-                owned = connection.execute(
-                    f"""
-                    SELECT count(*) FROM profiles
-                    WHERE id IN ({placeholders}) AND owner_subject = ?
-                      AND tenant_organization = ? AND tenant_workspace = ?
-                    """,
-                    [
-                        *profile_ids,
-                        scope.subject,
-                        scope.organization,
-                        scope.workspace,
-                    ],
-                ).fetchone()[0]
-                if owned != len(profile_ids):
+                if secondary_profile_id is None:
+                    owned = connection.execute(
+                        """
+                        SELECT count(*) FROM profiles
+                        WHERE id = ? AND owner_subject = ?
+                          AND tenant_organization = ? AND tenant_workspace = ?
+                        """,
+                        (
+                            profile_id,
+                            scope.subject,
+                            scope.organization,
+                            scope.workspace,
+                        ),
+                    ).fetchone()[0]
+                    expected_profiles = 1
+                else:
+                    owned = connection.execute(
+                        """
+                        SELECT count(*) FROM profiles
+                        WHERE id IN (?, ?) AND owner_subject = ?
+                          AND tenant_organization = ? AND tenant_workspace = ?
+                        """,
+                        (
+                            profile_id,
+                            secondary_profile_id,
+                            scope.subject,
+                            scope.organization,
+                            scope.workspace,
+                        ),
+                    ).fetchone()[0]
+                    expected_profiles = 2
+                if owned != expected_profiles:
                     raise PermissionError("profile is outside the caller tenant")
             connection.execute(
                 """
@@ -454,30 +468,27 @@ class Store:
 
         with self._connect() as connection:
             if scope is not None:
-                conditions = [
-                    "p.owner_subject = ?",
-                    "p.tenant_organization = ?",
-                    "p.tenant_workspace = ?",
-                ]
-                parameters: list[object] = [
-                    scope.subject,
-                    scope.organization,
-                    scope.workspace,
-                ]
-                if profile_id is not None:
-                    conditions.append("c.profile_id = ?")
-                    parameters.append(profile_id)
                 rows = connection.execute(
-                    "SELECT c.* FROM calendars AS c "
-                    "JOIN profiles AS p ON p.id = c.profile_id "
-                    "LEFT JOIN profiles AS sp ON sp.id = c.secondary_profile_id WHERE "
-                    + " AND ".join(conditions)
-                    + " AND (c.secondary_profile_id IS NULL OR ("
-                    + "sp.owner_subject = ? AND sp.tenant_organization = ? "
-                    + "AND sp.tenant_workspace = ?))"
-                    + " ORDER BY c.created_at, c.id",
+                    """
+                    SELECT c.* FROM calendars AS c
+                    JOIN profiles AS p ON p.id = c.profile_id
+                    LEFT JOIN profiles AS sp ON sp.id = c.secondary_profile_id
+                    WHERE p.owner_subject = ?
+                      AND p.tenant_organization = ?
+                      AND p.tenant_workspace = ?
+                      AND (? IS NULL OR c.profile_id = ?)
+                      AND (c.secondary_profile_id IS NULL OR (
+                          sp.owner_subject = ? AND sp.tenant_organization = ?
+                          AND sp.tenant_workspace = ?
+                      ))
+                    ORDER BY c.created_at, c.id
+                    """,
                     [
-                        *parameters,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                        profile_id,
+                        profile_id,
                         scope.subject,
                         scope.organization,
                         scope.workspace,

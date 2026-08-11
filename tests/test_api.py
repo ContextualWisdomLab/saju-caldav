@@ -173,8 +173,8 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert client.get("/").status_code == 401
     page = client.get("/", auth=_auth())
     assert page.status_code == 200
-    assert "두 사람의 좋은 시간 찾기" in page.text
-    assert "둘이 좋은 날과 시간 찾기" in page.text
+    assert "두 사람의 공통 관계 후보 찾기" in page.text
+    assert "두 사람의 관계 후보 찾기" in page.text
     assert "사주를 잘 몰라도 됩니다" in page.text
     assert "태어난 시각을 모릅니다" in page.text
     assert "생활 시간" in page.text
@@ -399,6 +399,8 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     assert preview.status_code == 200, preview.text
     payload = preview.json()
     assert payload["method"] == "balanced_branch_harmony"
+    assert payload["interpretation"] == "shared_branch_relations"
+    assert payload["gender_policy"] == "record_only"
     assert payload["include_overnight"] is False
     assert payload["primary_name"] == "공개 테스트 예시"
     assert payload["secondary_name"] == "두 번째 공개 예시"

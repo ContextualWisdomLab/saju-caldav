@@ -302,7 +302,7 @@ function renderCalendars() {
       const secondary = state.profiles.find((profile) => profile.id === calendar.secondary_profile_id);
       const timeBasis = primary?.time_mode === "true_solar" ? "진태양시" : "민간시";
       const rule = calendar.kind === "compatibility"
-        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}에게 고르게 어울리는 시간 · ${timeBasis} 기준 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
+        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}의 공통 관계 후보 · ${timeBasis} 기준 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
         : calendar.rule.predicates.map(predicateLabel).join(calendar.rule.logic === "all" ? " 그리고 " : " 또는 ");
       const synced = calendar.last_synced_at ? new Date(calendar.last_synced_at).toLocaleString("ko-KR") : "아직 동기화하지 않음";
       return `<article class="calendar-card" data-calendar-id="${escapeHtml(calendar.id)}">
@@ -411,8 +411,8 @@ function renderCompatibility(result, primary, secondary) {
           <time datetime="${escapeHtml(item.start)}">${escapeHtml(day)}</time>
           <strong>${escapeHtml(timeRange)}</strong>
         </div>
-        <div class="score-badge" aria-label="조화 점수 ${escapeHtml(item.score)}점">
-          <b>${escapeHtml(item.score)}</b><span>조화 점수</span>
+        <div class="score-badge" aria-label="관계 기준 점수 ${escapeHtml(item.score)}점">
+          <b>${escapeHtml(item.score)}</b><span>관계 기준 점수</span>
         </div>
         <div class="candidate-copy">
           <h3>${escapeHtml(item.label)}</h3>
@@ -429,7 +429,7 @@ function renderCompatibility(result, primary, secondary) {
   const calendarForm = document.getElementById("compatibility-calendar-form");
   calendarForm.elements.namedItem("primary_profile_id").value = primary.id;
   calendarForm.elements.namedItem("secondary_profile_id").value = secondary.id;
-  calendarForm.elements.namedItem("name").value = "둘이 좋은 시간";
+  calendarForm.elements.namedItem("name").value = "둘의 관계 후보 시간";
   $("#compatibility-result").hidden = false;
   $("#compatibility-result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -574,7 +574,7 @@ $("#pair-form").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
-  button.textContent = "두 사람의 시간을 계산하고 있습니다…";
+  button.textContent = "두 사람의 관계 후보를 계산하고 있습니다…";
   try {
     const primary = await resolvePairProfile(form, "primary");
     const secondary = await resolvePairProfile(form, "secondary");
@@ -598,12 +598,12 @@ $("#pair-form").addEventListener("submit", async (event) => {
     toggleNewPersonFields(primaryChoice);
     toggleNewPersonFields(secondaryChoice);
     renderCompatibility(result, primary, secondary);
-    notify(`${primary.name} · ${secondary.name}의 가까운 좋은 시간을 찾았습니다.`);
+    notify(`${primary.name} · ${secondary.name}의 가까운 공통 관계 후보를 찾았습니다.`);
   } catch (error) {
-    notify(`좋은 시간을 찾지 못했습니다: ${error.message}`, true);
+    notify(`공통 관계 후보를 찾지 못했습니다: ${error.message}`, true);
   } finally {
     button.disabled = false;
-    button.textContent = "둘이 좋은 날과 시간 찾기";
+    button.textContent = "두 사람의 관계 후보 찾기";
   }
 });
 
@@ -687,7 +687,7 @@ $("#calendar-list").addEventListener("click", async (event) => {
         .map((item) => `<li>
           ${escapeHtml(new Date(item.start).toLocaleString("ko-KR", displayOptions))}
           ${item.score
-            ? `· 조화 점수 ${escapeHtml(item.score)}점 · ${escapeHtml(item.label)}`
+            ? `· 관계 기준 점수 ${escapeHtml(item.score)}점 · ${escapeHtml(item.label)}`
             : `· 일지 ${escapeHtml(item.day_branch_korean)}, 시간 ${escapeHtml(item.hour_stem_korean)}`}
           <details><summary>사주 표기</summary><span lang="zh-Hant">${escapeHtml(item.day_pillar)} / ${escapeHtml(item.hour_pillar)}</span></details>
         </li>`)

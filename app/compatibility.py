@@ -82,21 +82,21 @@ def _bounded_score(day_relation: str, hour_relation: str) -> int:
 
 def _reason(person: str, period: str, relation: str) -> str | None:
     relation_labels = {
-        "six_harmony": "서로 짝을 이루는 육합",
-        "three_harmony": "같은 흐름을 이루는 삼합 계열",
-        "same": "같은 지지",
+        "six_harmony": "육합 관계",
+        "three_harmony": "삼합 계열 관계",
+        "same": "같은 지지 관계",
     }
     if relation not in relation_labels:
         return None
-    return f"{period}의 기운이 {person}의 일지와 {relation_labels[relation]}입니다."
+    return f"{period}의 지지가 {person}의 일지와 {relation_labels[relation]}입니다."
 
 
 def _label(score: int) -> str:
     if score >= 80:
-        return "두 사람 모두에게 조화가 큰 시간"
+        return "공통 관계 기준이 많이 겹치는 시간"
     if score >= 70:
-        return "두 사람에게 고르게 잘 맞는 시간"
-    return "두 사람에게 무난하게 어울리는 시간"
+        return "두 사람의 관계 기준이 고르게 겹치는 시간"
+    return "두 사람의 관계 기준을 함께 참고할 시간"
 
 
 def score_window(

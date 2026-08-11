@@ -746,6 +746,8 @@ def create_app(
             "primary_name": primary["name"],
             "secondary_name": secondary["name"],
             "method": "balanced_branch_harmony",
+            "interpretation": "shared_branch_relations",
+            "gender_policy": "record_only",
             "include_overnight": requested.include_overnight,
             "events": [_candidate_json(candidate) for candidate in candidates],
         }
