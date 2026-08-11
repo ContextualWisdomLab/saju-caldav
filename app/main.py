@@ -39,9 +39,13 @@ class Publisher(Protocol):
         calendar_name: str,
         visibility: str,
         windows: list[MatchingWindow],
-    ) -> SyncResult: ...
+    ) -> SyncResult:  # pragma: no cover - protocol declaration
+        pass
 
-    def delete(self, calendar_id: str, slug: str) -> None: ...
+    def delete(
+        self, calendar_id: str, slug: str
+    ) -> None:  # pragma: no cover - protocol declaration
+        pass
 
 
 class UnavailablePublisher:
