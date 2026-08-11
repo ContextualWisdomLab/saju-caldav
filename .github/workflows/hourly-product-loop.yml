@@ -55,9 +55,47 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          open_prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1 --json number)"
-          if [ "$(jq 'length' <<<"$open_prs")" -gt 0 ]; then
-            echo "NIM proposal paused: an open PR already owns the review lane." >>"$GITHUB_STEP_SUMMARY"
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          open_prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 2 --json number,headRefOid)"
+          open_count="$(jq 'length' <<<"$open_prs")"
+          if [ "$open_count" -gt 1 ]; then
+            echo "NIM proposal paused: more than one open PR owns the review lane; no candidate was selected." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$open_count" -eq 1 ]; then
+            listed_head="$(jq -r '.[0].headRefOid // empty' <<<"$open_prs")"
+            pr_number="$(jq -r '.[0].number' <<<"$open_prs")"
+            live_pr="$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json headRefOid,mergeStateStatus,reviewDecision,reviews,statusCheckRollup)"
+            live_head="$(jq -r '.headRefOid // empty' <<<"$live_pr")"
+            pending_checks="$(jq '[.statusCheckRollup[]? | select((.status // .state // "") | ascii_upcase | IN("PENDING", "QUEUED", "REQUESTED", "WAITING", "IN_PROGRESS"))] | length' <<<"$live_pr")"
+            failed_checks="$(jq '[.statusCheckRollup[]? | select((.conclusion // .state // "") | ascii_upcase | IN("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"))] | length' <<<"$live_pr")"
+            unknown_checks="$(jq '[.statusCheckRollup[]? | select((.status // .state // .conclusion // "") == "")] | length' <<<"$live_pr")"
+            review_decision="$(jq -r '.reviewDecision // "NONE"' <<<"$live_pr")"
+            review_count="$(jq '.reviews | length' <<<"$live_pr")"
+            approval_count="$(jq '[.reviews[]? | select(.state == "APPROVED")] | length' <<<"$live_pr")"
+            thread_query="query(\$owner: String!, \$repo: String!, \$number: Int!) { repository(owner: \$owner, name: \$repo) { pullRequest(number: \$number) { reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved isOutdated } } } } }"
+            unresolved_threads="$(gh api graphql \
+              -f query="$thread_query" \
+              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              | jq -r '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false and .isOutdated == false)] | length')"
+            thread_page_truncated="$(gh api graphql \
+              -f query="$thread_query" \
+              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+            ruleset_count="$(gh api "repos/$owner/$repo/rulesets?includes_parents=true" | jq 'length')"
+            cat >>"$GITHUB_STEP_SUMMARY" <<SUMMARY
+          NIM proposal paused: an open PR owns the review lane after current-head validation.
+          - PR: #$pr_number
+          - head: ${live_head:0:12}
+          - checks: pending=$pending_checks failed=$failed_checks unknown=$unknown_checks
+          - review decision: $review_decision (reviews=$review_count approvals=$approval_count)
+          - unresolved current threads: $unresolved_threads (page_truncated=$thread_page_truncated)
+          - applicable rulesets observed: $ruleset_count
+          SUMMARY
+            if [ -z "$live_head" ] || [ "$listed_head" != "$live_head" ] || [ "$thread_page_truncated" = true ]; then
+              echo "Gate validation was inconclusive; proposal remains paused (fail closed)." >>"$GITHUB_STEP_SUMMARY"
+            fi
             exit 0
           fi
           if [ "$NIM_CONFIGURED" != true ]; then

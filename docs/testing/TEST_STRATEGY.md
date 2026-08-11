@@ -22,7 +22,7 @@ uv run ruff check .
 uv run python scripts/private_regression.py  # 비공개 환경 변수만
 ```
 
-지원 런타임은 Python 3.12 이상이며 CI와 릴리스 후보에서 Python 3.14도 실행한다.
+지원 런타임은 Python 3.12 이상이며 CI와 릴리스 검증에서 Python 3.14도 실행한다.
 브라우저 자동화는 실제 출생값 없이 정적 자산·접근성·삭제 확인 흐름을 검증한다.
 coverage 예외는 Protocol 선언 같은 실행 불가능한 인터페이스에만 `pragma: no cover`
 를 사용하고 이유를 코드에 남긴다.

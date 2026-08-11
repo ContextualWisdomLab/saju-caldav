@@ -9,7 +9,7 @@
 | 최소정보 CalDAV | `app/caldav.py` | ARCHITECTURE, RFC refs | `tests/test_caldav.py`, smoke |
 | 원격 포함 개인정보 삭제 | `delete_published_collection`, store query | ADR-0002, threat model | deletion API tests |
 | 공급망·잠금 | pinned CI, `uv.lock`, `requirements.lock` | ADR-0001 | deployment/CI Checks |
-| 시간별 루프 | scheduled sentinel/NIM proposal | ADR-0003, [OPERABILITY](operations/OPERABILITY.md), [loop](operations/HOURLY_PRODUCT_LOOP.md) | workflow contract + current-head Checks |
+| 시간별 루프 | scheduled sentinel + safe gate (NIM proposal deferred) | ADR-0003, [OPERABILITY](operations/OPERABILITY.md), [loop](operations/HOURLY_PRODUCT_LOOP.md) | workflow contract + current-head Checks |
 | 한국어·한자 보조 설명 | static labels and summaries | PRD, research | static API/UI assertions |
 | 인증·운영 경계 | HTTP Basic, Radicale owner-only | SECURITY, [THREAT_MODEL](security/THREAT_MODEL.md) | API auth tests, container build |
 

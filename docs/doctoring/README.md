@@ -7,8 +7,9 @@
 ## 주장 경계
 
 - 사주·육합·육충·60갑자는 역사·문화적 계산 체계로 설명한다.
-- 양력·한국 음력·윤달·절기·시간대는 구현 라이브러리와 한국천문연구원 자료의
-  범위 안에서 계산한다. 범위 밖·학파 차이·출생 시각 미상은 불확실성으로 표시한다.
+- 양력·한국 음력·윤달·절기·시간대는 구현 라이브러리와 아래 참고문헌에 명시한
+  한국천문연구원 음양력 안내의 범위 안에서 계산한다. 범위 밖·학파 차이·출생
+  시각 미상은 불확실성으로 표시한다.
 - 두 사람 점수는 저장소의 설명 가능한 정렬 규칙이지 확률, 궁합의 객관적 판정,
   미래 사건의 인과 효과가 아니다.
 - RFC 5545/4791은 일정 표현·전송 표준이며 사주 계산의 타당성을 보증하지 않는다.
@@ -31,6 +32,9 @@ https://csrc.nist.gov/Projects/ssdf/publications
 
 Korea Internet & Security Agency. (n.d.). *클라우드 보안인증제 제도소개*.
 https://isms.kisa.or.kr/main/csap/intro/index.jsp
+
+Korea Astronomy and Space Science Institute. (n.d.). *비공식 역서의 음양력 오류
+안내*. https://www.kasi.re.kr/kor/publication/post/notice/385?clsf_cd=notice003
 
 International Organization for Standardization. (2025). *ISO/IEC 27018:2025
 Information security, cybersecurity and privacy protection — Guidelines for

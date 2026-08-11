@@ -37,23 +37,29 @@ REQUIRED_FILES = (
     "docs/doctoring/README.md",
 )
 
+COMMAND_TIMEOUT_SECONDS = 30 * 60
+
 
 def _run(root: Path, name: str, command: list[str]) -> CheckResult:
     """Run one bounded command and return a redacted summary."""
 
     started = time.monotonic()
-    completed = subprocess.run(
-        command,
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        seconds = round(time.monotonic() - started, 3)
+        return CheckResult(name, "fail", "command timed out", seconds)
     seconds = round(time.monotonic() - started, 3)
     if completed.returncode == 0:
         return CheckResult(name, "pass", "command completed", seconds)
-    output = " ".join((completed.stdout + " " + completed.stderr).split())
-    return CheckResult(name, "fail", output[:240] or f"exit {completed.returncode}", seconds)
+    return CheckResult(name, "fail", f"command failed (exit {completed.returncode})", seconds)
 
 
 def _file_contract(root: Path) -> CheckResult:

@@ -23,7 +23,7 @@ erDiagram
   calendars {
     text id PK
     text profile_id FK
-    text secondary_profile_id FK
+    text secondary_profile_id
     text name
     text slug UK
     text visibility

@@ -19,10 +19,12 @@
 ## 시간별 품질 루프
 
 `.github/workflows/hourly-product-loop.yml`은 매시 17분에 실행한다. 열린 PR이
-있으면 새 개발을 만들지 않고 기존 PR의 head·Checks·리뷰를 우선한다. sentinel은
-모델 없이 품질을 확인하고, NIM 제안은 ADR-0003의 모든 게이트를 통과할 때만
-bounded artifact/PR을 만든다. 자세한 단계와 중단 조건은
-[HOURLY_PRODUCT_LOOP.md](HOURLY_PRODUCT_LOOP.md)에 있다.
+있으면 새 개발을 만들지 않고 기존 PR의 현재 head SHA, Checks, 리뷰, unresolved
+thread, applicable rulesets를 다시 조회한 뒤 안전하게 중단한다. sentinel은
+모델 없이 품질을 확인한다. 현재 workflow는 NIM 모델 실행·patch 생성·PR 발행을
+하지 않으며, `NVIDIA_NIM_API_KEY`는 미래 publisher를 위한 구성 여부만 gate에
+기록한다. 자동 merge/release/deploy도 없다. 자세한 현재 단계와 향후 보류 조건은
+[HOURLY_PRODUCT_LOOP.md](HOURLY_PRODUCT_LOOP.md)와 ADR-0003에 둔다.
 
 ## 사고 대응
 
