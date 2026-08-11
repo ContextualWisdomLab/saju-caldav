@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart LR
-    O[인증된 운영자] -->|HTTPS 또는 VPN| W[FastAPI 웹/API]
+    O[Basic 운영자 또는 검증된 Keyverse subject] -->|HTTPS 또는 VPN| W[FastAPI 웹/API]
+    K[Keyverse OIDC issuer + JWKS] -->|RS256 bearer 검증| W
     W --> L[출생 도시 → 시간대·선택 경도]
     L --> N[양력·한국 음력 입력 정규화]
     N --> S[(SQLite 원본 입력·양력 시각·규칙)]
@@ -18,8 +19,20 @@ flowchart LR
 ## 경계
 
 - 웹/API와 Radicale은 서로 다른 프로세스와 포트를 사용합니다.
-- 웹은 단일 운영자 HTTP Basic 인증으로 모든 프로필·규칙 접근을 보호합니다.
+- 웹은 기본적으로 단일 운영자 HTTP Basic 인증을 사용하며, `AUTH_MODE=oidc` 또는
+  `hybrid`에서는 Keyverse가 서명한 Bearer 토큰을 먼저 검증합니다. 검증된
+  `sub`·`org`·`workspace`가 프로필 소유 범위가 되고, 다른 범위의 ID는 404로
+  차단됩니다. Bearer 검증 실패는 Basic으로 우회하지 않습니다.
+- Keyverse RP client 등록은 앱의 토큰 소비와 별도 desired-state 경계입니다.
+  `deploy/templates/oidc-rp-saju-caldav.json`에는 secret이 없고, 실제 운영은
+  Keyverse validate→PUT→convergence와 downstream 수용·거부 증거 뒤에만
+  `deployment-restricted`를 해제합니다.
 - Radicale은 별도 자격 증명과 `owner_only` 권한으로 컬렉션을 보호합니다.
+- OIDC `sub`·조직·workspace 격리는 웹/API와 SQLite 경계에만 적용됩니다. 직접
+  CalDAV 연결은 하나의 설정된 `CALDAV_USERNAME` 경로와 자격 증명을 공유하므로
+  Radicale 컬렉션 URL 자체가 Keyverse subject별 격리를 제공한다고 주장하지
+  않습니다. subject별 CalDAV 계정·ACL 매핑은 별도 설계와 교차 범위 테스트 뒤에
+  추가해야 합니다.
 - 애플리케이션은 CalDAV 서버에 `MKCALENDAR`와 결정적 `PUT`만 수행합니다.
 - 한국 음력 입력은 평달·윤달을 구분해 원본 그대로 저장하고, 계산 경계에서
   `korean-lunar-calendar` 0.4.0으로 양력 현지 시각을 만듭니다.
@@ -34,12 +47,15 @@ flowchart LR
   도시의 경도만 서버 내부에서 자동 적용합니다.
 - 규칙은 임의 코드나 식을 평가하지 않습니다. 8개 이하의 허용 필드 비교만
   역직렬화합니다.
-- 두 사람 추천은 두 프로필의 출생 일지와 후보의 날짜·시간 지지를 비교하는
-  고정된 허용 관계표만 사용합니다. 육충 후보를 제외하고 두 사람 중 낮은 점수를
+- 두 사람의 공통 관계 후보는 두 프로필의 출생 일지와 후보의 날짜·시간 지지를
+  비교하는 고정된 허용 관계표만 사용합니다. 전통적인 궁합이나 ‘두 사람의 합’의
+  해석을 주장하지 않습니다. 육충 후보를 제외하고 두 사람 중 낮은 점수를
   더 크게 반영합니다. 기본값은 첫 번째 사람이 선택한 `civil` 민간시 또는
   `true_solar` 진태양시 기준 09:00–23:00 안에서 날짜마다 가장 높은 현재 이후
-  시간 하나를 남기며, 사용자가 선택하면 24시간 전체를 검색합니다. 이 점수는
-  문화적 정렬 규칙이지 예측 모델의 확률이 아닙니다.
+  시간 하나를 남기며, 사용자가 선택하면 24시간 전체를 검색합니다. API는
+  `interpretation=shared_branch_relations`, `gender_policy=record_only`를 함께
+  반환해 이 경계를 명시합니다. 이 점수는 문화적 정렬 규칙이지 예측 모델의
+  확률이 아닙니다.
 - iCalendar 이벤트는 사용자가 선택한 `CLASS:PRIVATE`, `CLASS:CONFIDENTIAL`,
   `CLASS:PUBLIC` 중 하나와 `TRANSP:TRANSPARENT`로 생성됩니다. 이 분류는 캘린더
   클라이언트 표시용이며 Radicale의 인증·`owner_only` 접근 제어를 바꾸지 않습니다.
@@ -54,7 +70,7 @@ flowchart LR
 
 ## 데이터
 
-SQLite에는 프로필이 입력한 달력 종류, 평달·윤달, 출생 날짜, 선택 입력인 출생
+SQLite에는 프로필 소유 subject·조직·workspace와 함께 프로필이 입력한 달력 종류, 평달·윤달, 출생 날짜, 선택 입력인 출생
 시각과 시각 확인 여부, 변환된 양력 계산 시각, 선택한 도시, 성별, 시간대, 선택
 경도, 계산된 명식과 캘린더 규칙·공개 수준을 저장합니다.
 Radicale 볼륨에는 최소정보 iCalendar 리소스를 저장합니다. 어느 쪽도 공개 CI나

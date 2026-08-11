@@ -10,7 +10,7 @@
 
 | 위협 | 경로 | 통제 | 증거 |
 | --- | --- | --- | --- |
-| 무단 프로필 조회 | API/Basic | HTTP Basic, TLS/VPN 배치, 단일 operator 범위 | `tests/test_api.py` |
+| 무단 프로필 조회 | API/Basic/OIDC | TLS/VPN, Keyverse issuer·서명·audience·시간·tenant 검증, subject 범위 쿼리 | `tests/test_api.py`, `tests/test_oidc.py` |
 | 원격 데이터 잔존 | 삭제 후 Radicale | 원격 DELETE 선행, 404 멱등, 오류 502 | 삭제 회귀 테스트 |
 | 규칙 주입 | JSON 규칙 | 허용 필드·리터럴만 검증, 임의 식 금지 | `tests/test_rules.py` |
 | 공급망 변조 | CI Action/lock | SHA pin, uv/requirements lock, dependency/SAST | ADR-0001, Checks |
@@ -24,6 +24,11 @@ HTTP Basic은 TLS 없이 안전하지 않으며, 대표 경도 기반 진태양�
 천문 관측이 아니다. 서비스는 CSAP·SOC 2 인증을 주장하지 않는다. 인증을 목표로
 할 때는 자산 범위, 증적, 공급자·처리자 계약, 접근 검토, 사고 대응을 별도
 감사 범위로 확정해야 한다.
+
+Keyverse client reconciliation과 실제 browser PKCE 로그인은 이 저장소 밖의
+배포 경계다. OIDC 검증 코드와 합성 토큰 테스트가 있어도 실제 Keyverse issuer의
+convergence·로그인·logout·rollback 증거가 없으면 운영 authorization-ready로
+승격하지 않는다.
 
 ## 삭제 감사
 

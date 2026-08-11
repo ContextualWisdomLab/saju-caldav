@@ -15,6 +15,14 @@ chmod 600 .env
 
 `.env`에서 웹과 CalDAV 암호를 서로 다른 24자 이상의 임의 값으로 바꿉니다.
 
+기본 `AUTH_MODE=basic`은 기존 단일 운영자 설치를 유지합니다. Keyverse를 사용할
+때에는 `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL`(선택),
+`OIDC_REQUIRED_ORG`, `OIDC_REQUIRED_WORKSPACE`, `OIDC_ALLOWED_ROLES`를 정확히
+설정한 뒤 [Keyverse 연동 문서](security/KEYVERSE.md)의 client reconciliation과
+downstream 토큰 수용·거부 검증을 먼저 완료합니다. `oidc`·`hybrid` 모드는 필수
+OIDC 설정이 없으면 시작하지 않습니다. 상세 계약은 [ADR-0004](adr/0004-keyverse-oidc-rp-boundary.md)를
+따릅니다.
+
 ```bash
 docker compose up -d --build
 docker compose ps
@@ -71,6 +79,8 @@ Apple Calendar 등 자동 검색이 실패하면 운영자 콘솔에서 동기�
 - 암호 변경: `.env` 수정 후 `docker compose up -d --force-recreate`를 실행합니다.
   Radicale의 bcrypt 파일은 시작할 때 새 암호로 재생성됩니다.
 - 로그에는 출생 데이터나 암호를 출력하지 않습니다.
+- OIDC 운영에서도 토큰, Authorization 헤더, JWKS 응답, client secret을 로그나
+  저장소에 남기지 않습니다.
 - 데이터베이스와 CalDAV 볼륨은 서버에만 두고 공개 CI로 복사하지 않습니다.
 - 인터넷에 포트를 직접 노출하지 마십시오. Basic 인증은 TLS 없이는 자격 증명을
   보호하지 못합니다.
