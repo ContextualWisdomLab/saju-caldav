@@ -379,8 +379,6 @@ def create_app(
     def delete_published_collection(calendar: dict[str, object]) -> None:
         """Erase a remote CalDAV collection before deleting local metadata."""
 
-        if not calendar.get("last_synced_at"):
-            return
         try:
             caldav_publisher.delete(str(calendar["id"]), str(calendar["slug"]))
         except RuntimeError as error:

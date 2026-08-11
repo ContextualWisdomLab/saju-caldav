@@ -189,6 +189,10 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert script.status_code == 200
     assert "출생 정보 삭제" in script.text
     assert "연결된 캘린더" in script.text
+    assert "is_leap_month" in script.text
+    assert "aria-label" in script.text
+    assert "refreshPairProfileChoices" in script.text
+    assert "삭제는 완료했지만 목록을 새로고침하지 못했습니다" in script.text
 
 
 def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
@@ -783,6 +787,42 @@ def test_delete_synced_calendar_removes_remote_collection_before_metadata(
         {"calendar_id": calendar["id"], "slug": calendar["slug"]}
     ]
     assert client.get("/api/calendars", auth=_auth()).json() == []
+
+
+def test_delete_calendar_cleans_remote_collection_when_sync_marker_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store = Store(tmp_path / "marker-failure.db")
+    publisher = RecordingPublisher()
+    app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=publisher,
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+
+    def fail_to_mark_synced(calendar_id: str) -> None:
+        del calendar_id
+        raise sqlite3.OperationalError("synthetic marker failure")
+
+    monkeypatch.setattr(store, "mark_synced", fail_to_mark_synced)
+    sync_failed_after_remote_publish = client.post(
+        f"/api/calendars/{calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+    )
+    assert sync_failed_after_remote_publish.status_code == 500
+
+    deleted = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+
+    assert deleted.status_code == 204
+    assert publisher.delete_calls == [
+        {"calendar_id": calendar["id"], "slug": calendar["slug"]}
+    ]
 
 
 def test_delete_synced_profile_removes_primary_and_secondary_remote_collections(

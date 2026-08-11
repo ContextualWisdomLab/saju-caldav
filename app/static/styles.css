@@ -802,6 +802,7 @@ select:hover {
 .profile-copy strong {
   font-family: var(--serif);
   font-size: 17px;
+  overflow-wrap: anywhere;
 }
 
 .profile-copy span,
