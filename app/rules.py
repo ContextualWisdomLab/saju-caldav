@@ -15,6 +15,8 @@ ALLOWED_FIELDS = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class Predicate:
+    """Describe one field comparison against a literal or natal chart field."""
+
     field: str
     source: str
     value: str
@@ -22,6 +24,8 @@ class Predicate:
 
 @dataclass(frozen=True, slots=True)
 class Rule:
+    """Represent a validated conjunction or disjunction of predicates."""
+
     logic: str
     predicates: tuple[Predicate, ...]
 
@@ -43,6 +47,8 @@ def _allowed_literals(field: str) -> set[str]:
 
 
 def validate_rule(data: dict[str, object]) -> Rule:
+    """Validate untrusted JSON into the non-executable rule representation."""
+
     logic = data.get("logic")
     if logic not in {"all", "any"}:
         raise ValueError("logic must be all or any")
@@ -77,6 +83,8 @@ def validate_rule(data: dict[str, object]) -> Rule:
 
 
 def matches(rule: Rule, natal: Chart, current: Chart) -> bool:
+    """Evaluate a validated rule against natal and current charts."""
+
     results = (
         _field_value(current, predicate.field)
         == (
@@ -87,4 +95,3 @@ def matches(rule: Rule, natal: Chart, current: Chart) -> bool:
         for predicate in rule.predicates
     )
     return all(results) if rule.logic == "all" else any(results)
-

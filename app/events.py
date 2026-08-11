@@ -15,6 +15,8 @@ SEGMENTS = ((0, 1),) + tuple((hour, hour + 2) for hour in range(1, 22, 2)) + ((2
 
 @dataclass(frozen=True, slots=True)
 class MatchingWindow:
+    """Pair a local interval with the chart calculated for that interval."""
+
     start: datetime
     end: datetime
     chart: Chart

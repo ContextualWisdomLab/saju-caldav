@@ -11,6 +11,8 @@ from korean_lunar_calendar import KoreanLunarCalendar
 
 @dataclass(frozen=True, slots=True)
 class BirthInput:
+    """Capture a validated solar or Korean-lunar birth date and local time."""
+
     calendar: Literal["solar", "lunar"]
     year: int
     month: int

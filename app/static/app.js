@@ -114,20 +114,48 @@ function showChart(profile) {
   $("#chart-result").hidden = false;
 }
 
-function renderProfiles() {
-  const select = $("#profile-select");
-  const selected = select.value;
+function profileBirthSummary(profile) {
+  const calendar = profile.birth_calendar === "lunar" ? "한국 음력" : "양력";
+  const month = profile.birth_calendar === "lunar" && profile.is_leap_month
+    ? `윤${profile.birth_month}월`
+    : `${profile.birth_month}월`;
+  const date = `${profile.birth_year}년 ${month} ${profile.birth_day}일`;
+  const time = profile.birth_time_known === false
+    ? "태어난 시각 미상"
+    : `${profile.birth_time?.slice(0, 5) || "시각 미상"}`;
+  const place = profile.birth_city_name || profile.timezone;
+  return `${calendar} ${date} · ${time} · ${place}`;
+}
+
+function renderProfileList() {
+  const list = $("#profile-list");
   if (!state.profiles.length) {
-    select.innerHTML = '<option value="">먼저 출생 프로필을 저장하세요</option>';
-    $("#chart-result").hidden = true;
+    list.innerHTML = '<p class="empty-state">아직 저장된 출생 프로필이 없습니다.</p>';
     return;
   }
-  select.innerHTML = state.profiles.map((profile) => profileOption(profile, true)).join("");
-  select.value = state.profiles.some((profile) => profile.id === selected)
-    ? selected
-    : state.profiles.at(-1).id;
-  showChart(state.profiles.find((profile) => profile.id === select.value));
+  list.innerHTML = state.profiles.map((profile) => {
+    const linkedCalendars = state.calendars.filter((calendar) =>
+      calendar.profile_id === profile.id || calendar.secondary_profile_id === profile.id
+    ).length;
+    return `<article class="profile-card" data-profile-id="${escapeHtml(profile.id)}">
+      <div class="profile-copy">
+        <strong>${escapeHtml(profile.name)}</strong>
+        <span>${escapeHtml(profileBirthSummary(profile))}</span>
+        <small>${linkedCalendars
+          ? `연결된 캘린더 ${linkedCalendars}개 · 동기화된 일정도 삭제 가능`
+          : "연결된 캘린더 없음"}</small>
+      </div>
+      <button
+        class="button danger"
+        type="button"
+        data-action="delete-profile"
+        aria-label="${escapeHtml(profile.name)} 출생 정보 삭제"
+      >출생 정보 삭제</button>
+    </article>`;
+  }).join("");
+}
 
+function refreshPairProfileChoices() {
   document.querySelectorAll("[data-profile-choice]").forEach((choice) => {
     const previous = choice.value;
     choice.innerHTML = [
@@ -139,6 +167,27 @@ function renderProfiles() {
       : "";
     toggleNewPersonFields(choice);
   });
+}
+
+function renderProfiles() {
+  const select = $("#profile-select");
+  const selected = select.value;
+  refreshPairProfileChoices();
+  if (!state.profiles.length) {
+    select.innerHTML = '<option value="">먼저 출생 프로필을 저장하세요</option>';
+    $("#chart-result").hidden = true;
+    $("#chart-profile-name").textContent = "";
+    $("#pillars").textContent = "";
+    $("#acceptance-note").textContent = "";
+    renderProfileList();
+    return;
+  }
+  select.innerHTML = state.profiles.map((profile) => profileOption(profile, true)).join("");
+  select.value = state.profiles.some((profile) => profile.id === selected)
+    ? selected
+    : state.profiles.at(-1).id;
+  showChart(state.profiles.find((profile) => profile.id === select.value));
+  renderProfileList();
 }
 
 function renderLocations() {
@@ -440,6 +489,41 @@ $("#profile-form [data-unknown-time]").addEventListener("change", (event) => {
 $("#profile-select").addEventListener("change", (event) => {
   const profile = state.profiles.find((item) => item.id === event.target.value);
   if (profile) showChart(profile);
+});
+
+$("#profile-list").addEventListener("click", async (event) => {
+  const button = event.target.closest('button[data-action="delete-profile"]');
+  if (!button) return;
+  const card = button.closest("[data-profile-id]");
+  const profile = state.profiles.find((item) => item.id === card.dataset.profileId);
+  if (!profile) return;
+  const linkedCalendars = state.calendars.filter((calendar) =>
+    calendar.profile_id === profile.id || calendar.secondary_profile_id === profile.id
+  ).length;
+  const message = linkedCalendars
+    ? `‘${profile.name}’과 연결된 캘린더 ${linkedCalendars}개, 동기화된 일정까지 삭제합니다. 계속할까요?`
+    : `‘${profile.name}’ 출생 정보를 삭제할까요?`;
+  if (!window.confirm(message)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/profiles/${profile.id}`, { method: "DELETE" });
+    state.profiles = state.profiles.filter((item) => item.id !== profile.id);
+    state.calendars = state.calendars.filter((calendar) =>
+      calendar.profile_id !== profile.id && calendar.secondary_profile_id !== profile.id
+    );
+    renderProfiles();
+    renderCalendars();
+    notify(`‘${profile.name}’ 출생 정보와 연결된 데이터를 삭제했습니다.`);
+    try {
+      await refresh();
+    } catch (refreshError) {
+      notify(`출생 정보 삭제 완료, 목록 갱신 실패: ${refreshError.message}`, true);
+    }
+  } catch (error) {
+    notify(`출생 정보를 삭제하지 못했습니다: ${error.message}`, true);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $("#day-source").addEventListener("change", (event) => {

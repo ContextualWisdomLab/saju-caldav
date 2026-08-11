@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 @dataclass(frozen=True, slots=True)
 class BirthCity:
+    """Describe a curated city preset kept on the server."""
+
     id: str
     label: str
     timezone: str
@@ -16,6 +18,8 @@ class BirthCity:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedBirthPlace:
+    """Carry the effective timezone and optional true-solar longitude."""
+
     city_id: str | None
     city_name: str | None
     timezone: str

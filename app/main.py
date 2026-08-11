@@ -32,6 +32,8 @@ from app.store import Store
 
 
 class Publisher(Protocol):
+    """Define the narrow sync/delete contract used by the API orchestration."""
+
     def sync(
         self,
         calendar_id: str,
@@ -39,10 +41,22 @@ class Publisher(Protocol):
         calendar_name: str,
         visibility: str,
         windows: list[MatchingWindow],
-    ) -> SyncResult: ...
+    ) -> SyncResult:  # pragma: no cover - protocol declaration
+        """Publish matching windows to a remote calendar collection."""
+
+        pass
+
+    def delete(
+        self, calendar_id: str, slug: str
+    ) -> None:  # pragma: no cover - protocol declaration
+        """Delete a remote calendar collection idempotently."""
+
+        pass
 
 
 class UnavailablePublisher:
+    """Fail closed when CalDAV credentials are not configured."""
+
     def sync(
         self,
         calendar_id: str,
@@ -51,11 +65,21 @@ class UnavailablePublisher:
         visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult:
+        """Reject publishing rather than silently claiming a remote sync."""
+
         del calendar_id, slug, calendar_name, visibility, windows
+        raise RuntimeError("CalDAV publisher credentials are not configured")
+
+    def delete(self, calendar_id: str, slug: str) -> None:
+        """Reject remote deletion when the publisher is unavailable."""
+
+        del calendar_id, slug
         raise RuntimeError("CalDAV publisher credentials are not configured")
 
 
 class ProfileCreate(BaseModel):
+    """Validate a user-supplied birth profile before chart calculation."""
+
     name: str = Field(min_length=1, max_length=80)
     birth_calendar: Literal["solar", "lunar"] = "solar"
     birth_year: int = Field(ge=1000, le=2050)
@@ -72,6 +96,8 @@ class ProfileCreate(BaseModel):
 
 
 class CalendarCreate(BaseModel):
+    """Validate a single-profile matching calendar request."""
+
     profile_id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=100)
     slug: str = Field(
@@ -84,11 +110,15 @@ class CalendarCreate(BaseModel):
 
 
 class DateRange(BaseModel):
+    """Represent an optional inclusive local-date search range."""
+
     start_date: date | None = None
     end_date: date | None = None
 
 
 class CompatibilityRequest(DateRange):
+    """Request ranked matching windows for two stored profiles."""
+
     primary_profile_id: str = Field(min_length=1, max_length=80)
     secondary_profile_id: str = Field(min_length=1, max_length=80)
     limit: int = Field(default=12, ge=1, le=96)
@@ -96,6 +126,8 @@ class CompatibilityRequest(DateRange):
 
 
 class CompatibilityCalendarCreate(BaseModel):
+    """Validate creation settings for a two-person compatibility calendar."""
+
     primary_profile_id: str = Field(min_length=1, max_length=80)
     secondary_profile_id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=100)
@@ -323,6 +355,8 @@ def create_app(
     publisher: Publisher | None = None,
     static_dir: Path | None = None,
 ) -> FastAPI:
+    """Build the authenticated FastAPI application and its persistence adapters."""
+
     metadata_store = store or Store(os.environ.get("SAJU_DB_PATH", "data/saju.db"))
     metadata_store.initialize()
     operator_username = (
@@ -349,6 +383,8 @@ def create_app(
         _request: Request,
         error: sqlite3.OperationalError,
     ) -> JSONResponse:
+        """Turn transient SQLite lock contention into a retryable 503 response."""
+
         if (getattr(error, "sqlite_errorcode", 0) & 0xFF) not in {
             sqlite3.SQLITE_BUSY,
             sqlite3.SQLITE_LOCKED,
@@ -361,14 +397,26 @@ def create_app(
         )
 
     def serialize_calendar_operation() -> Iterator[None]:
+        """Serialize mutating calendar operations for the single-worker service."""
+
         with calendar_operation_lock:
             yield
 
     serialized_calendar_operation = Depends(serialize_calendar_operation)
 
+    def delete_published_collection(calendar: dict[str, object]) -> None:
+        """Erase a remote CalDAV collection before deleting local metadata."""
+
+        try:
+            caldav_publisher.delete(str(calendar["id"]), str(calendar["slug"]))
+        except RuntimeError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
     def require_operator(
         credentials: HTTPBasicCredentials | None = Depends(security),  # noqa: B008
     ) -> None:
+        """Require constant-time HTTP Basic authentication for operator routes."""
+
         valid = bool(operator_password and credentials)
         if credentials is not None:
             valid = valid and secrets.compare_digest(
@@ -388,18 +436,26 @@ def create_app(
 
     @application.get("/health")
     def health() -> dict[str, str]:
+        """Return the liveness response without exposing application metadata."""
+
         return {"status": "ok"}
 
     @api.get("/profiles")
     def list_profiles() -> list[dict[str, object]]:
+        """List stored birth profiles for the authenticated operator."""
+
         return metadata_store.list_profiles()
 
     @api.get("/locations")
     def list_locations() -> list[dict[str, str]]:
+        """List client-safe birth-city presets without exposing coordinates."""
+
         return list_birth_cities()
 
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
     def create_profile(requested: ProfileCreate) -> dict[str, object]:
+        """Normalize birth input, calculate a chart, and persist the profile."""
+
         if requested.birth_time_known and requested.birth_time is None:
             raise HTTPException(
                 status_code=422,
@@ -477,11 +533,19 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def delete_profile(profile_id: str) -> None:
+        """Erase linked remote collections before deleting a birth profile locally."""
+
+        if metadata_store.get_profile(profile_id) is None:
+            raise HTTPException(status_code=404, detail="profile not found")
+        for calendar in metadata_store.list_calendars_for_profile(profile_id):
+            delete_published_collection(calendar)
         if not metadata_store.delete_profile(profile_id):
             raise HTTPException(status_code=404, detail="profile not found")
 
     @api.get("/calendars")
     def list_calendars(profile_id: str | None = None) -> list[dict[str, object]]:
+        """List calendars, optionally restricted to their primary profile."""
+
         return metadata_store.list_calendars(profile_id)
 
     @api.post(
@@ -490,6 +554,8 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def create_calendar(requested: CalendarCreate) -> dict[str, object]:
+        """Validate and persist a rule-based calendar definition."""
+
         profile = metadata_store.get_profile(requested.profile_id)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile not found")
@@ -521,11 +587,19 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def delete_calendar(calendar_id: str) -> None:
+        """Delete the remote collection first, then remove local calendar metadata."""
+
+        calendar = metadata_store.get_calendar(calendar_id)
+        if calendar is None:
+            raise HTTPException(status_code=404, detail="calendar not found")
+        delete_published_collection(calendar)
         if not metadata_store.delete_calendar(calendar_id):
             raise HTTPException(status_code=404, detail="calendar not found")
 
     @api.post("/calendars/{calendar_id}/preview")
     def preview_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
+        """Preview current rule or compatibility matches without publishing them."""
+
         calendar = metadata_store.get_calendar(calendar_id)
         if calendar is None:
             raise HTTPException(status_code=404, detail="calendar not found")
@@ -569,6 +643,8 @@ def create_app(
 
     @api.post("/compatibility/preview")
     def preview_compatibility(requested: CompatibilityRequest) -> dict[str, object]:
+        """Return ranked, explainable compatibility candidates for two profiles."""
+
         primary, secondary, candidates = _compatibility_candidates(
             metadata_store,
             requested,
@@ -590,6 +666,8 @@ def create_app(
     def create_compatibility_calendar(
         requested: CompatibilityCalendarCreate,
     ) -> dict[str, object]:
+        """Persist a two-profile compatibility calendar definition."""
+
         _compatibility_context(
             metadata_store,
             requested.primary_profile_id,
@@ -620,6 +698,8 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def sync_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
+        """Generate current matches, publish them, and record the sync marker."""
+
         calendar, windows = _windows(metadata_store, calendar_id, requested)
         try:
             result = caldav_publisher.sync(
@@ -646,6 +726,8 @@ def create_app(
 
     @application.get("/", dependencies=[Depends(require_operator)])
     def index():
+        """Serve the Korean operator console when static assets are available."""
+
         index_file = assets / "index.html"
         if index_file.exists():
             return FileResponse(index_file)
