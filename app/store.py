@@ -10,6 +10,8 @@ from uuid import uuid4
 
 
 class Store:
+    """Persist profiles and calendar definitions in a small SQLite database."""
+
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
 
@@ -21,6 +23,8 @@ class Store:
         return connection
 
     def initialize(self) -> None:
+        """Create or migrate the local schema without rewriting stored data."""
+
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode = WAL")
@@ -168,6 +172,8 @@ class Store:
         chart: dict[str, object],
         birth_time_known: bool = True,
     ) -> dict[str, object]:
+        """Insert a profile and return its normalized stored representation."""
+
         profile_id = str(uuid4())
         with self._connect() as connection:
             connection.execute(
@@ -206,6 +212,8 @@ class Store:
         return profile
 
     def get_profile(self, profile_id: str) -> dict[str, object] | None:
+        """Load one profile by identifier, or return ``None`` when absent."""
+
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM profiles WHERE id = ?", (profile_id,)
@@ -213,11 +221,15 @@ class Store:
         return self._profile(row)
 
     def list_profiles(self) -> list[dict[str, object]]:
+        """Return profiles in deterministic creation order."""
+
         with self._connect() as connection:
             rows = connection.execute("SELECT * FROM profiles ORDER BY created_at, id").fetchall()
         return [profile for row in rows if (profile := self._profile(row)) is not None]
 
     def delete_profile(self, profile_id: str) -> bool:
+        """Delete a profile and compatibility calendars that reference it secondarily."""
+
         with self._connect() as connection:
             connection.execute(
                 "DELETE FROM calendars WHERE secondary_profile_id = ?",
@@ -237,6 +249,8 @@ class Store:
         kind: str = "rule",
         secondary_profile_id: str | None = None,
     ) -> dict[str, object]:
+        """Insert a rule or compatibility calendar and return its stored form."""
+
         calendar_id = str(uuid4())
         with self._connect() as connection:
             connection.execute(
@@ -264,6 +278,8 @@ class Store:
         return calendar
 
     def get_calendar(self, calendar_id: str) -> dict[str, object] | None:
+        """Load one calendar by identifier, or return ``None`` when absent."""
+
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM calendars WHERE id = ?", (calendar_id,)
@@ -271,6 +287,8 @@ class Store:
         return self._calendar(row)
 
     def list_calendars(self, profile_id: str | None = None) -> list[dict[str, object]]:
+        """Return calendars in deterministic order, optionally by primary profile."""
+
         with self._connect() as connection:
             if profile_id is None:
                 rows = connection.execute(
@@ -298,11 +316,15 @@ class Store:
         return [calendar for row in rows if (calendar := self._calendar(row)) is not None]
 
     def delete_calendar(self, calendar_id: str) -> bool:
+        """Delete one local calendar metadata record."""
+
         with self._connect() as connection:
             cursor = connection.execute("DELETE FROM calendars WHERE id = ?", (calendar_id,))
         return cursor.rowcount == 1
 
     def mark_synced(self, calendar_id: str) -> None:
+        """Record the UTC time at which a calendar was last published."""
+
         with self._connect() as connection:
             connection.execute(
                 "UPDATE calendars SET last_synced_at = ? WHERE id = ?",

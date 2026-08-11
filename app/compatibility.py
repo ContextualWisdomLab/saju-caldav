@@ -50,6 +50,8 @@ MINIMUM_SCORE = 60
 
 @dataclass(frozen=True, slots=True)
 class CompatibilityCandidate:
+    """Represent one transparent, non-predictive two-person time candidate."""
+
     window: MatchingWindow
     score: int
     primary_score: int

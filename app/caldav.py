@@ -21,6 +21,8 @@ VISIBILITY_CLASSES = {
 
 
 def event_uid(calendar_id: str, window: MatchingWindow) -> str:
+    """Build a stable iCalendar event identifier for one matching window."""
+
     identity = f"{calendar_id}|{window.start.isoformat()}|{window.end.isoformat()}|v1"
     return f"{hashlib.sha256(identity.encode()).hexdigest()[:32]}@saju-caldav"
 
@@ -31,6 +33,8 @@ def build_icalendar(
     visibility: str,
     window: MatchingWindow,
 ) -> bytes:
+    """Serialize one matching window as an RFC 5545 calendar document."""
+
     try:
         ical_class = VISIBILITY_CLASSES[visibility]
     except KeyError as error:
@@ -60,12 +64,18 @@ def build_icalendar(
 
 @dataclass(frozen=True, slots=True)
 class SyncResult:
+    """Report the remote collection and number of events written."""
+
     collection_url: str
     event_count: int
 
 
 class CalDavPublisher:
+    """Publish the small CalDAV surface required by the operator console."""
+
     def __init__(self, base_url: str, username: str, password: str, timeout: float = 10) -> None:
+        """Validate the endpoint and retain credentials for request authentication."""
+
         normalized_url = base_url.rstrip("/")
         parsed = urlsplit(normalized_url)
         if (
@@ -130,6 +140,8 @@ class CalDavPublisher:
         visibility: str,
         windows: list[MatchingWindow],
     ) -> SyncResult:
+        """Create or reuse a collection and replace its matching event resources."""
+
         user_path = quote(self.username, safe="")
         slug_path = quote(slug, safe="")
         collection_url = f"{self.base_url}/{user_path}/{slug_path}/"

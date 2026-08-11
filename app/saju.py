@@ -56,44 +56,64 @@ BRANCH_KOREAN = {
 
 @dataclass(frozen=True, slots=True)
 class Pillar:
+    """Pair a heavenly stem with an earthly branch and Korean explanations."""
+
     stem: str
     branch: str
 
     @classmethod
     def from_ganzhi(cls, ganzhi: str) -> Pillar:
+        """Create a pillar from its two-character ganzhi representation."""
+
         return cls(stem=ganzhi[0], branch=ganzhi[1])
 
     @property
     def ganzhi(self) -> str:
+        """Return the traditional stem-and-branch pair."""
+
         return f"{self.stem}{self.branch}"
 
     @property
     def stem_element(self) -> str:
+        """Return the five-element classification of the stem."""
+
         return STEM_ELEMENTS[self.stem]
 
     @property
     def branch_element(self) -> str:
+        """Return the five-element classification of the branch."""
+
         return BRANCH_ELEMENTS[self.branch]
 
     @property
     def stem_korean(self) -> str:
+        """Return the Korean name of the stem and its yin-yang polarity."""
+
         return STEM_KOREAN[self.stem][0]
 
     @property
     def stem_description(self) -> str:
+        """Return a plain-Korean description of the stem imagery."""
+
         return STEM_KOREAN[self.stem][1]
 
     @property
     def branch_korean(self) -> str:
+        """Return the Korean name of the earthly branch."""
+
         return BRANCH_KOREAN[self.branch][0]
 
     @property
     def branch_description(self) -> str:
+        """Return a plain-Korean description of the branch imagery."""
+
         return BRANCH_KOREAN[self.branch][1]
 
 
 @dataclass(frozen=True, slots=True)
 class Chart:
+    """Hold four pillars and the local wall time used for calculation."""
+
     year: Pillar
     month: Pillar
     day: Pillar
