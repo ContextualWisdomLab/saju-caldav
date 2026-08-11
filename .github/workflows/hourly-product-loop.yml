@@ -1,0 +1,109 @@
+name: Hourly Product Loop
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+concurrency:
+  group: hourly-product-loop-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality-sentinel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact default branch without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+          prune-cache: true
+      - name: Install locked development environment
+        run: uv sync --locked --dev
+      - name: Run deterministic quality sentinel
+        run: uv run python scripts/hourly_product_loop.py --format text
+
+  nim-proposal-gate:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Record safe proposal gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIM_CONFIGURED: ${{ secrets.NVIDIA_NIM_API_KEY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          open_prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 2 --json number,headRefOid)"
+          open_count="$(jq 'length' <<<"$open_prs")"
+          if [ "$open_count" -gt 1 ]; then
+            echo "NIM proposal paused: more than one open PR owns the review lane; no candidate was selected." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$open_count" -eq 1 ]; then
+            listed_head="$(jq -r '.[0].headRefOid // empty' <<<"$open_prs")"
+            pr_number="$(jq -r '.[0].number' <<<"$open_prs")"
+            live_pr="$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json headRefOid,mergeStateStatus,reviewDecision,reviews,statusCheckRollup)"
+            live_head="$(jq -r '.headRefOid // empty' <<<"$live_pr")"
+            pending_checks="$(jq '[.statusCheckRollup[]? | select((.status // .state // "") | ascii_upcase | IN("PENDING", "QUEUED", "REQUESTED", "WAITING", "IN_PROGRESS"))] | length' <<<"$live_pr")"
+            failed_checks="$(jq '[.statusCheckRollup[]? | select((.conclusion // .state // "") | ascii_upcase | IN("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"))] | length' <<<"$live_pr")"
+            unknown_checks="$(jq '[.statusCheckRollup[]? | select((.status // .state // .conclusion // "") == "")] | length' <<<"$live_pr")"
+            review_decision="$(jq -r '.reviewDecision // "NONE"' <<<"$live_pr")"
+            review_count="$(jq '.reviews | length' <<<"$live_pr")"
+            approval_count="$(jq '[.reviews[]? | select(.state == "APPROVED")] | length' <<<"$live_pr")"
+            thread_query="query(\$owner: String!, \$repo: String!, \$number: Int!) { repository(owner: \$owner, name: \$repo) { pullRequest(number: \$number) { reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved isOutdated } } } } }"
+            unresolved_threads="$(gh api graphql \
+              -f query="$thread_query" \
+              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              | jq -r '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false and .isOutdated == false)] | length')"
+            thread_page_truncated="$(gh api graphql \
+              -f query="$thread_query" \
+              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+            ruleset_count="$(gh api "repos/$owner/$repo/rulesets?includes_parents=true" | jq 'length')"
+            cat >>"$GITHUB_STEP_SUMMARY" <<SUMMARY
+          NIM proposal paused: an open PR owns the review lane after current-head validation.
+          - PR: #$pr_number
+          - head: ${live_head:0:12}
+          - checks: pending=$pending_checks failed=$failed_checks unknown=$unknown_checks
+          - review decision: $review_decision (reviews=$review_count approvals=$approval_count)
+          - unresolved current threads: $unresolved_threads (page_truncated=$thread_page_truncated)
+          - applicable rulesets observed: $ruleset_count
+          SUMMARY
+            if [ -z "$live_head" ] || [ "$listed_head" != "$live_head" ] || [ "$thread_page_truncated" = true ]; then
+              echo "Gate validation was inconclusive; proposal remains paused (fail closed)." >>"$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          if [ "$NIM_CONFIGURED" != true ]; then
+            echo "NIM proposal paused: NVIDIA_NIM_API_KEY is not configured." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cat >>"$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          NIM key and zero-open-PR gate passed. A future publisher may run the
+          three-runner proposal contract from ADR-0003; this workflow deliberately
+          does not grant model or maintainer write credentials.
+          SUMMARY

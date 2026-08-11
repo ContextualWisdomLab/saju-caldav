@@ -1,8 +1,10 @@
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from app.events import generate_windows, iter_chart_windows
+from app.main import DateRange, _resolve_date_range
 from app.rules import validate_rule
 from app.saju import calculate_chart
 
@@ -90,6 +92,75 @@ def test_generation_range_is_bounded() -> None:
             "civil",
             None,
         )
+
+
+def test_generation_range_uses_inclusive_boundaries() -> None:
+    assert next(
+        iter_chart_windows(
+            date(2026, 1, 1),
+            date(2026, 1, 1),
+            "Asia/Seoul",
+            "civil",
+            None,
+        )
+    ).start.date() == date(2026, 1, 1)
+    assert next(
+        iter_chart_windows(
+            date(2026, 1, 1),
+            date(2026, 1, 1) + timedelta(days=729),
+            "Asia/Seoul",
+            "civil",
+            None,
+        )
+    ).start.date() == date(2026, 1, 1)
+    with pytest.raises(ValueError, match="730 days"):
+        next(
+            iter_chart_windows(
+                date(2026, 1, 1),
+                date(2026, 1, 1) + timedelta(days=730),
+                "Asia/Seoul",
+                "civil",
+                None,
+            )
+        )
+
+
+def test_default_range_uses_profile_timezone_at_utc_date_boundary() -> None:
+    start, end = _resolve_date_range(
+        DateRange(),
+        ZoneInfo("Asia/Seoul"),
+        datetime(2026, 1, 1, 23, 30, tzinfo=UTC),
+    )
+    assert start == date(2026, 1, 2)
+    assert end == date(2027, 1, 2)
+
+
+@pytest.mark.parametrize(
+    ("transition_date", "expected_start_offset", "expected_end_offset"),
+    [
+        (date(2024, 3, 10), timedelta(hours=-5), timedelta(hours=-4)),
+        (date(2024, 11, 3), timedelta(hours=-4), timedelta(hours=-5)),
+    ],
+)
+def test_dst_windows_follow_zoneinfo_default_fold_and_gap_semantics(
+    transition_date: date,
+    expected_start_offset: timedelta,
+    expected_end_offset: timedelta,
+) -> None:
+    window = next(
+        candidate
+        for candidate in iter_chart_windows(
+            transition_date,
+            transition_date,
+            "America/New_York",
+            "civil",
+            None,
+        )
+        if candidate.start.hour == 1
+    )
+    assert window.start.fold == 0
+    assert window.start.utcoffset() == expected_start_offset
+    assert window.end.utcoffset() == expected_end_offset
 
 
 def test_generation_rejects_reversed_range_and_incomplete_true_solar_mode() -> None:

@@ -20,7 +20,8 @@
 - 출생 도시에서 IANA 시간대를 자동 선택하고 좌표 입력 없이 표준시 계산
 - 선택한 도시의 서버 내부 경도를 사용하는 진태양시 보정 선택
 - 일주·시주의 천간, 지지, 오행을 조합하는 허용 목록 기반 규칙
-- 프로필 시간대의 오늘부터 1년간 조건 일치 시각 미리보기
+- 프로필 시간대의 오늘 날짜부터 `오늘 + 365일`까지(양끝 포함) 조건 일치 시각
+  미리보기와, 명시 범위의 양끝 포함 최대 730일 검색
 - 비공개·제한 공개·공개 표시를 고르는 RFC 5545 iCalendar 이벤트
 - Radicale을 통한 RFC 4791 CalDAV 캘린더 발행
 - HTTP Basic으로 보호되는 한국어 운영자 웹 콘솔
@@ -28,8 +29,10 @@
 
 첫 화면의 `두 사람의 좋은 시간 찾기`에서 저장된 프로필을 선택하거나 두 사람의
 생년월일과 탄생 시를 바로 입력하면 됩니다. 기본 검색은 프로필 시간대의 지금
-이후부터 1년 안에서 날짜마다 가장 균형이 높은 시간 하나를 골라 가까운 순으로
-보여 줍니다. 기본값은 첫 번째 사람이 선택한 민간시 또는 진태양시 기준
+이후부터 오늘 날짜에 365일을 더한 종료일까지(양끝 포함) 날짜마다 가장 균형이
+높은 시간 하나를 골라 가까운 순으로 보여 줍니다. `start_date`와 `end_date`를
+직접 주는 검색은 양끝을 포함해 최대 730개 날짜까지 허용합니다. 기본값은 첫 번째
+사람이 선택한 민간시 또는 진태양시 기준
 09:00–23:00이며, 필요하면 `24시간 전체`로 새벽 후보까지 볼 수 있습니다. 더
 세밀한 천간·지지 조건은 아래의 `고급: 직접 조건 만들기`에서 계속 사용할 수
 있습니다.
@@ -41,7 +44,8 @@
 
 ## 빠른 시작
 
-Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)를 사용합니다.
+Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)를 사용합니다. CI와 릴리스
+검증은 Python 3.14에서도 수행합니다.
 
 ```bash
 uv sync --dev
@@ -93,6 +97,11 @@ uv run python scripts/acceptance_smoke.py
 - [역법 조사와 구현 규칙](docs/research/README.md)
 - [아키텍처와 위협 경계](docs/ARCHITECTURE.md)
 - [ADR-0001: 런타임 잠금과 CI 출처](docs/adr/0001-runtime-lock-and-ci-provenance.md)
+- [ADR 색인과 개인정보 삭제 결정](docs/adr/README.md)
+- [제품 요구사항](docs/product/PRD.md) · [기술 요구사항](docs/technical/TRD.md)
+- [위협 모델](docs/security/THREAT_MODEL.md) · [테스트 전략](docs/testing/TEST_STRATEGY.md)
+- [운영성과](docs/operations/OPERABILITY.md) · [요구사항 추적](docs/TRACEABILITY.md)
+- [근거·APA 7 기록](docs/doctoring/README.md)
 - [배포와 CalDAV 연결](docs/DEPLOYMENT.md)
 - [Figma 운영자 콘솔](https://www.figma.com/design/P4wdj2MnYwItYch3zdGIWt)
 - [제품 설계](docs/superpowers/specs/2026-07-19-saju-caldav-design.md)
