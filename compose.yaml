@@ -5,6 +5,15 @@ services:
     environment:
       APP_USERNAME: ${APP_USERNAME:-operator}
       APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD}
+      AUTH_MODE: ${AUTH_MODE:-basic}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-saju-caldav-web}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
+      OIDC_REQUIRED_ORG: ${OIDC_REQUIRED_ORG:-org-cwl}
+      OIDC_REQUIRED_WORKSPACE: ${OIDC_REQUIRED_WORKSPACE:-workspace-org-cwl}
+      OIDC_ALLOWED_ROLES: ${OIDC_ALLOWED_ROLES:-member}
+      OIDC_CLOCK_SKEW_SECONDS: ${OIDC_CLOCK_SKEW_SECONDS:-60}
+      OIDC_JWKS_CACHE_SECONDS: ${OIDC_JWKS_CACHE_SECONDS:-300}
       SAJU_DB_PATH: /data/app/saju.db
       CALDAV_BASE_URL: http://radicale:5232
       CALDAV_USERNAME: ${CALDAV_USERNAME:-caluser}

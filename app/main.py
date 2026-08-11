@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 import sqlite3
 from collections.abc import Iterator
 from datetime import date, datetime, time, timedelta
@@ -18,6 +17,12 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.auth import (
+    AuthConfig,
+    AuthenticationError,
+    Authenticator,
+    oidc_verifier_from_environment,
+)
 from app.birth import BirthInput, normalize_birth
 from app.caldav import CalDavPublisher, SyncResult
 from app.compatibility import (
@@ -25,6 +30,7 @@ from app.compatibility import (
     generate_compatibility_candidates,
 )
 from app.events import MatchingWindow, generate_windows
+from app.identity import AuthIdentity
 from app.locations import list_birth_cities, resolve_birth_place
 from app.rules import Rule, validate_rule
 from app.saju import Chart, Pillar, calculate_chart
@@ -192,11 +198,21 @@ def _profile_chart(profile: dict[str, object]) -> Chart:
 def _calendar_context(
     store: Store,
     calendar_id: str,
+    identity: AuthIdentity | None = None,
 ) -> tuple[dict[str, object], dict[str, object], Rule, Chart]:
-    calendar = store.get_calendar(calendar_id)
+    scope = identity.scope if identity is not None else None
+    calendar = (
+        store.get_calendar(calendar_id)
+        if identity is None
+        else store.get_calendar(calendar_id, scope)
+    )
     if calendar is None:
         raise HTTPException(status_code=404, detail="calendar not found")
-    profile = store.get_profile(str(calendar["profile_id"]))
+    profile = (
+        store.get_profile(str(calendar["profile_id"]))
+        if identity is None
+        else store.get_profile(str(calendar["profile_id"]), scope)
+    )
     if profile is None:
         raise HTTPException(status_code=404, detail="profile not found")
     try:
@@ -215,14 +231,20 @@ def _compatibility_context(
     store: Store,
     primary_profile_id: str,
     secondary_profile_id: str,
+    identity: AuthIdentity | None = None,
 ) -> tuple[dict[str, object], dict[str, object], Chart, Chart]:
     if primary_profile_id == secondary_profile_id:
         raise HTTPException(
             status_code=422,
             detail="서로 다른 두 사람의 프로필을 선택하세요",
         )
-    primary = store.get_profile(primary_profile_id)
-    secondary = store.get_profile(secondary_profile_id)
+    scope = identity.scope if identity is not None else None
+    if identity is None:
+        primary = store.get_profile(primary_profile_id)
+        secondary = store.get_profile(secondary_profile_id)
+    else:
+        primary = store.get_profile(primary_profile_id, scope)
+        secondary = store.get_profile(secondary_profile_id, scope)
     if primary is None or secondary is None:
         raise HTTPException(status_code=404, detail="profile not found")
     try:
@@ -239,11 +261,13 @@ def _compatibility_context(
 def _compatibility_candidates(
     store: Store,
     requested: CompatibilityRequest,
+    identity: AuthIdentity | None = None,
 ) -> tuple[dict[str, object], dict[str, object], list[CompatibilityCandidate]]:
     primary, secondary, primary_chart, secondary_chart = _compatibility_context(
         store,
         requested.primary_profile_id,
         requested.secondary_profile_id,
+        identity,
     )
     try:
         timezone = str(primary["timezone"])
@@ -295,8 +319,14 @@ def _windows(
     store: Store,
     calendar_id: str,
     requested: DateRange,
+    identity: AuthIdentity | None = None,
 ) -> tuple[dict[str, object], list[MatchingWindow]]:
-    stored_calendar = store.get_calendar(calendar_id)
+    scope = identity.scope if identity is not None else None
+    stored_calendar = (
+        store.get_calendar(calendar_id)
+        if identity is None
+        else store.get_calendar(calendar_id, scope)
+    )
     if stored_calendar is None:
         raise HTTPException(status_code=404, detail="calendar not found")
     if stored_calendar.get("kind") == "compatibility":
@@ -309,10 +339,10 @@ def _windows(
             limit=int(settings.get("limit", 36)),
             include_overnight=bool(settings.get("include_overnight", False)),
         )
-        _, _, candidates = _compatibility_candidates(store, requested_pair)
+        _, _, candidates = _compatibility_candidates(store, requested_pair, identity)
         return stored_calendar, [candidate.window for candidate in candidates]
 
-    calendar, profile, rule, natal = _calendar_context(store, calendar_id)
+    calendar, profile, rule, natal = _calendar_context(store, calendar_id, identity)
     try:
         timezone = str(profile["timezone"])
         zone = ZoneInfo(timezone)
@@ -354,6 +384,8 @@ def create_app(
     password: str | None = None,
     publisher: Publisher | None = None,
     static_dir: Path | None = None,
+    auth_mode: str | None = None,
+    oidc_verifier=None,
 ) -> FastAPI:
     """Build the authenticated FastAPI application and its persistence adapters."""
 
@@ -363,6 +395,14 @@ def create_app(
         username if username is not None else os.environ.get("APP_USERNAME", "operator")
     )
     operator_password = password if password is not None else os.environ.get("APP_PASSWORD", "")
+    selected_auth_mode = (auth_mode or os.environ.get("AUTH_MODE", "basic")).strip().lower()
+    configured_oidc_verifier = oidc_verifier
+    if configured_oidc_verifier is None and selected_auth_mode in {"hybrid", "oidc"}:
+        configured_oidc_verifier = oidc_verifier_from_environment(dict(os.environ))
+    authenticator = Authenticator(
+        AuthConfig(selected_auth_mode, operator_username, operator_password),
+        oidc_verifier=configured_oidc_verifier,
+    )
     caldav_publisher = publisher or _publisher_from_environment()
     assets = static_dir or Path(__file__).with_name("static")
     # ponytail: process-local serialization fits the single-worker deployment;
@@ -412,27 +452,40 @@ def create_app(
         except RuntimeError as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
 
-    def require_operator(
+    def require_identity(
+        request: Request,
         credentials: HTTPBasicCredentials | None = Depends(security),  # noqa: B008
-    ) -> None:
-        """Require constant-time HTTP Basic authentication for operator routes."""
+    ) -> AuthIdentity:
+        """Authenticate Basic migration callers or a verified Keyverse bearer."""
 
-        valid = bool(operator_password and credentials)
-        if credentials is not None:
-            valid = valid and secrets.compare_digest(
-                credentials.username.encode(), operator_username.encode()
-            )
-            valid = valid and secrets.compare_digest(
-                credentials.password.encode(), operator_password.encode()
-            )
-        if not valid:
+        try:
+            return authenticator.authenticate(request.headers.get("authorization"), credentials)
+        except AuthenticationError as error:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="operator authentication required",
-                headers={"WWW-Authenticate": "Basic"},
-            )
+                detail=str(error),
+                headers={
+                    "WWW-Authenticate": (
+                        "Bearer" if selected_auth_mode == "oidc" else "Basic"
+                    )
+                },
+            ) from error
 
-    api = APIRouter(prefix="/api", dependencies=[Depends(require_operator)])
+    def store_scope_args(identity: AuthIdentity) -> tuple[object, ...]:
+        """Keep the legacy Basic mode call shape while scoping Keyverse requests."""
+
+        if selected_auth_mode == "basic":
+            return ()
+        return (identity.scope,)
+
+    def store_scope_kwargs(identity: AuthIdentity) -> dict[str, object]:
+        """Return a scope keyword only for tenant-aware authentication modes."""
+
+        if selected_auth_mode == "basic":
+            return {}
+        return {"scope": identity.scope}
+
+    api = APIRouter(prefix="/api")
 
     @application.get("/health")
     def health() -> dict[str, str]:
@@ -441,19 +494,27 @@ def create_app(
         return {"status": "ok"}
 
     @api.get("/profiles")
-    def list_profiles() -> list[dict[str, object]]:
+    def list_profiles(
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> list[dict[str, object]]:
         """List stored birth profiles for the authenticated operator."""
 
-        return metadata_store.list_profiles()
+        return metadata_store.list_profiles(*store_scope_args(identity))
 
     @api.get("/locations")
-    def list_locations() -> list[dict[str, str]]:
+    def list_locations(
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> list[dict[str, str]]:
         """List client-safe birth-city presets without exposing coordinates."""
 
+        del identity
         return list_birth_cities()
 
     @api.post("/profiles", status_code=status.HTTP_201_CREATED)
-    def create_profile(requested: ProfileCreate) -> dict[str, object]:
+    def create_profile(
+        requested: ProfileCreate,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> dict[str, object]:
         """Normalize birth input, calculate a chart, and persist the profile."""
 
         if requested.birth_time_known and requested.birth_time is None:
@@ -525,6 +586,9 @@ def create_app(
             time_mode=requested.time_mode,
             longitude=place.longitude,
             chart=chart_json,
+            owner_subject=identity.scope.subject,
+            tenant_organization=identity.scope.organization,
+            tenant_workspace=identity.scope.workspace,
         )
 
     @api.delete(
@@ -532,31 +596,42 @@ def create_app(
         status_code=status.HTTP_204_NO_CONTENT,
         dependencies=[serialized_calendar_operation],
     )
-    def delete_profile(profile_id: str) -> None:
+    def delete_profile(
+        profile_id: str,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> None:
         """Erase linked remote collections before deleting a birth profile locally."""
 
-        if metadata_store.get_profile(profile_id) is None:
+        scope_args = store_scope_args(identity)
+        if metadata_store.get_profile(profile_id, *scope_args) is None:
             raise HTTPException(status_code=404, detail="profile not found")
-        for calendar in metadata_store.list_calendars_for_profile(profile_id):
+        for calendar in metadata_store.list_calendars_for_profile(profile_id, *scope_args):
             delete_published_collection(calendar)
-        if not metadata_store.delete_profile(profile_id):
+        if not metadata_store.delete_profile(profile_id, *scope_args):
             raise HTTPException(status_code=404, detail="profile not found")
 
     @api.get("/calendars")
-    def list_calendars(profile_id: str | None = None) -> list[dict[str, object]]:
+    def list_calendars(
+        profile_id: str | None = None,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> list[dict[str, object]]:
         """List calendars, optionally restricted to their primary profile."""
 
-        return metadata_store.list_calendars(profile_id)
+        return metadata_store.list_calendars(profile_id, *store_scope_args(identity))
 
     @api.post(
         "/calendars",
         status_code=status.HTTP_201_CREATED,
         dependencies=[serialized_calendar_operation],
     )
-    def create_calendar(requested: CalendarCreate) -> dict[str, object]:
+    def create_calendar(
+        requested: CalendarCreate,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> dict[str, object]:
         """Validate and persist a rule-based calendar definition."""
 
-        profile = metadata_store.get_profile(requested.profile_id)
+        scope_args = store_scope_args(identity)
+        profile = metadata_store.get_profile(requested.profile_id, *scope_args)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile not found")
         try:
@@ -575,9 +650,12 @@ def create_app(
                 visibility=requested.visibility,
                 rule=requested.rule,
                 kind="rule",
+                **store_scope_kwargs(identity),
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+        except PermissionError as error:
+            raise HTTPException(status_code=404, detail="profile not found") from error
         except sqlite3.IntegrityError as error:
             raise HTTPException(status_code=409, detail="calendar slug already exists") from error
 
@@ -586,21 +664,30 @@ def create_app(
         status_code=status.HTTP_204_NO_CONTENT,
         dependencies=[serialized_calendar_operation],
     )
-    def delete_calendar(calendar_id: str) -> None:
+    def delete_calendar(
+        calendar_id: str,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> None:
         """Delete the remote collection first, then remove local calendar metadata."""
 
-        calendar = metadata_store.get_calendar(calendar_id)
+        scope_args = store_scope_args(identity)
+        calendar = metadata_store.get_calendar(calendar_id, *scope_args)
         if calendar is None:
             raise HTTPException(status_code=404, detail="calendar not found")
         delete_published_collection(calendar)
-        if not metadata_store.delete_calendar(calendar_id):
+        if not metadata_store.delete_calendar(calendar_id, *scope_args):
             raise HTTPException(status_code=404, detail="calendar not found")
 
     @api.post("/calendars/{calendar_id}/preview")
-    def preview_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
+    def preview_calendar(
+        calendar_id: str,
+        requested: DateRange,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> dict[str, object]:
         """Preview current rule or compatibility matches without publishing them."""
 
-        calendar = metadata_store.get_calendar(calendar_id)
+        route_identity = None if selected_auth_mode == "basic" else identity
+        calendar = metadata_store.get_calendar(calendar_id, *store_scope_args(identity))
         if calendar is None:
             raise HTTPException(status_code=404, detail="calendar not found")
         if calendar.get("kind") == "compatibility":
@@ -616,6 +703,7 @@ def create_app(
             primary, secondary, candidates = _compatibility_candidates(
                 metadata_store,
                 compatibility_request,
+                route_identity,
             )
             return {
                 "count": len(candidates),
@@ -625,7 +713,7 @@ def create_app(
                 "include_overnight": compatibility_request.include_overnight,
                 "events": [_candidate_json(candidate) for candidate in candidates],
             }
-        _, windows = _windows(metadata_store, calendar_id, requested)
+        _, windows = _windows(metadata_store, calendar_id, requested, route_identity)
         return {
             "count": len(windows),
             "events": [
@@ -642,12 +730,16 @@ def create_app(
         }
 
     @api.post("/compatibility/preview")
-    def preview_compatibility(requested: CompatibilityRequest) -> dict[str, object]:
+    def preview_compatibility(
+        requested: CompatibilityRequest,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> dict[str, object]:
         """Return ranked, explainable compatibility candidates for two profiles."""
 
         primary, secondary, candidates = _compatibility_candidates(
             metadata_store,
             requested,
+            None if selected_auth_mode == "basic" else identity,
         )
         return {
             "count": len(candidates),
@@ -665,13 +757,16 @@ def create_app(
     )
     def create_compatibility_calendar(
         requested: CompatibilityCalendarCreate,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
     ) -> dict[str, object]:
         """Persist a two-profile compatibility calendar definition."""
 
+        route_identity = None if selected_auth_mode == "basic" else identity
         _compatibility_context(
             metadata_store,
             requested.primary_profile_id,
             requested.secondary_profile_id,
+            route_identity,
         )
         try:
             return metadata_store.create_calendar(
@@ -686,7 +781,10 @@ def create_app(
                     "limit": requested.limit,
                     "include_overnight": requested.include_overnight,
                 },
+                **store_scope_kwargs(identity),
             )
+        except PermissionError as error:
+            raise HTTPException(status_code=404, detail="profile not found") from error
         except sqlite3.IntegrityError as error:
             raise HTTPException(
                 status_code=409,
@@ -697,10 +795,15 @@ def create_app(
         "/calendars/{calendar_id}/sync",
         dependencies=[serialized_calendar_operation],
     )
-    def sync_calendar(calendar_id: str, requested: DateRange) -> dict[str, object]:
+    def sync_calendar(
+        calendar_id: str,
+        requested: DateRange,
+        identity: AuthIdentity = Depends(require_identity),  # noqa: B008
+    ) -> dict[str, object]:
         """Generate current matches, publish them, and record the sync marker."""
 
-        calendar, windows = _windows(metadata_store, calendar_id, requested)
+        route_identity = None if selected_auth_mode == "basic" else identity
+        calendar, windows = _windows(metadata_store, calendar_id, requested, route_identity)
         try:
             result = caldav_publisher.sync(
                 calendar_id,
@@ -713,7 +816,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(error)) from error
         except RuntimeError as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
-        metadata_store.mark_synced(calendar_id)
+        metadata_store.mark_synced(calendar_id, *store_scope_args(identity))
         return {
             "collection_url": result.collection_url,
             "event_count": result.event_count,
@@ -724,10 +827,11 @@ def create_app(
     if assets.exists():
         application.mount("/static", StaticFiles(directory=assets), name="static")
 
-    @application.get("/", dependencies=[Depends(require_operator)])
-    def index():
+    @application.get("/")
+    def index(identity: AuthIdentity = Depends(require_identity)):  # noqa: B008
         """Serve the Korean operator console when static assets are available."""
 
+        del identity
         index_file = assets / "index.html"
         if index_file.exists():
             return FileResponse(index_file)

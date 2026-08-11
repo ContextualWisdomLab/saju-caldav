@@ -1,4 +1,5 @@
 import configparser
+import json
 import tomllib
 from pathlib import Path
 
@@ -45,6 +46,26 @@ def test_container_runs_unprivileged_and_compose_has_no_literal_secrets() -> Non
     assert "APP_PASSWORD: ${APP_PASSWORD:?" in compose
     assert "CALDAV_PASSWORD: ${CALDAV_PASSWORD:?" in compose
     assert "correct-horse-battery-staple" not in compose
+
+
+def test_keyverse_oidc_contract_is_secret_free_and_opt_in() -> None:
+    compose = (ROOT / "compose.yaml").read_text()
+    env_example = (ROOT / ".env.example").read_text()
+    template = json.loads(
+        (ROOT / "deploy" / "templates" / "oidc-rp-saju-caldav.json").read_text()
+    )
+    keyverse_doc = (ROOT / "docs" / "security" / "KEYVERSE.md").read_text()
+
+    assert "AUTH_MODE: ${AUTH_MODE:-basic}" in compose
+    assert "AUTH_MODE=basic" in env_example
+    assert template["clientId"] == "saju-caldav-web"
+    assert template["publicClient"] is True
+    assert template["clientAuthenticatorType"] == "none"
+    assert template["attributes"]["pkce.code.challenge.method"] == "S256"
+    assert template["fullScopeAllowed"] is False
+    assert template["defaultClientScopes"] == ["basic", "profile", "email"]
+    assert "client-secret" not in json.dumps(template)
+    assert "validate" in keyverse_doc and "convergence" in keyverse_doc
 
 
 def test_runtime_lock_matches_exact_project_dependencies() -> None:

@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart LR
-    O[인증된 운영자] -->|HTTPS 또는 VPN| W[FastAPI 웹/API]
+    O[Basic 운영자 또는 검증된 Keyverse subject] -->|HTTPS 또는 VPN| W[FastAPI 웹/API]
+    K[Keyverse OIDC issuer + JWKS] -->|RS256 bearer 검증| W
     W --> L[출생 도시 → 시간대·선택 경도]
     L --> N[양력·한국 음력 입력 정규화]
     N --> S[(SQLite 원본 입력·양력 시각·규칙)]
@@ -18,7 +19,14 @@ flowchart LR
 ## 경계
 
 - 웹/API와 Radicale은 서로 다른 프로세스와 포트를 사용합니다.
-- 웹은 단일 운영자 HTTP Basic 인증으로 모든 프로필·규칙 접근을 보호합니다.
+- 웹은 기본적으로 단일 운영자 HTTP Basic 인증을 사용하며, `AUTH_MODE=oidc` 또는
+  `hybrid`에서는 Keyverse가 서명한 Bearer 토큰을 먼저 검증합니다. 검증된
+  `sub`·`org`·`workspace`가 프로필 소유 범위가 되고, 다른 범위의 ID는 404로
+  차단됩니다. Bearer 검증 실패는 Basic으로 우회하지 않습니다.
+- Keyverse RP client 등록은 앱의 토큰 소비와 별도 desired-state 경계입니다.
+  `deploy/templates/oidc-rp-saju-caldav.json`에는 secret이 없고, 실제 운영은
+  Keyverse validate→PUT→convergence와 downstream 수용·거부 증거 뒤에만
+  `deployment-restricted`를 해제합니다.
 - Radicale은 별도 자격 증명과 `owner_only` 권한으로 컬렉션을 보호합니다.
 - 애플리케이션은 CalDAV 서버에 `MKCALENDAR`와 결정적 `PUT`만 수행합니다.
 - 한국 음력 입력은 평달·윤달을 구분해 원본 그대로 저장하고, 계산 경계에서
@@ -54,7 +62,7 @@ flowchart LR
 
 ## 데이터
 
-SQLite에는 프로필이 입력한 달력 종류, 평달·윤달, 출생 날짜, 선택 입력인 출생
+SQLite에는 프로필 소유 subject·조직·workspace와 함께 프로필이 입력한 달력 종류, 평달·윤달, 출생 날짜, 선택 입력인 출생
 시각과 시각 확인 여부, 변환된 양력 계산 시각, 선택한 도시, 성별, 시간대, 선택
 경도, 계산된 명식과 캘린더 규칙·공개 수준을 저장합니다.
 Radicale 볼륨에는 최소정보 iCalendar 리소스를 저장합니다. 어느 쪽도 공개 CI나

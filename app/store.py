@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from app.identity import TenantScope
+
 
 class Store:
     """Persist profiles and calendar definitions in a small SQLite database."""
@@ -47,6 +49,9 @@ class Store:
                     timezone TEXT NOT NULL,
                     time_mode TEXT NOT NULL,
                     longitude REAL,
+                    owner_subject TEXT NOT NULL DEFAULT 'legacy:operator',
+                    tenant_organization TEXT NOT NULL DEFAULT 'legacy',
+                    tenant_workspace TEXT NOT NULL DEFAULT 'legacy',
                     chart_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
@@ -92,6 +97,21 @@ class Store:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_city TEXT")
             if "birth_city_name" not in profile_columns:
                 connection.execute("ALTER TABLE profiles ADD COLUMN birth_city_name TEXT")
+            if "owner_subject" not in profile_columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN owner_subject TEXT "
+                    "NOT NULL DEFAULT 'legacy:operator'"
+                )
+            if "tenant_organization" not in profile_columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN tenant_organization TEXT "
+                    "NOT NULL DEFAULT 'legacy'"
+                )
+            if "tenant_workspace" not in profile_columns:
+                connection.execute(
+                    "ALTER TABLE profiles ADD COLUMN tenant_workspace TEXT "
+                    "NOT NULL DEFAULT 'legacy'"
+                )
             calendar_columns = {
                 str(row[1]) for row in connection.execute("PRAGMA table_info(calendars)")
             }
@@ -128,6 +148,12 @@ class Store:
             )
             connection.execute(
                 """
+                CREATE INDEX IF NOT EXISTS profiles_owner_scope
+                ON profiles(owner_subject, tenant_organization, tenant_workspace)
+                """
+            )
+            connection.execute(
+                """
                 UPDATE profiles
                 SET birth_time = substr(birth_local, 12)
                 WHERE birth_time_known = 1
@@ -141,6 +167,8 @@ class Store:
             return None
         result = dict(row)
         result["birth_time_known"] = bool(result["birth_time_known"])
+        for private_field in ("owner_subject", "tenant_organization", "tenant_workspace"):
+            result.pop(private_field, None)
         result["chart"] = json.loads(str(result.pop("chart_json")))
         return result
 
@@ -171,6 +199,9 @@ class Store:
         longitude: float | None,
         chart: dict[str, object],
         birth_time_known: bool = True,
+        owner_subject: str = "legacy:operator",
+        tenant_organization: str = "legacy",
+        tenant_workspace: str = "legacy",
     ) -> dict[str, object]:
         """Insert a profile and return its normalized stored representation."""
 
@@ -182,8 +213,10 @@ class Store:
                     (id, name, birth_local, birth_calendar, birth_year, birth_month,
                      birth_day, birth_time, birth_time_known, is_leap_month,
                      birth_city, birth_city_name,
-                     gender, timezone, time_mode, longitude, chart_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     gender, timezone, time_mode, longitude,
+                     owner_subject, tenant_organization, tenant_workspace,
+                     chart_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     profile_id,
@@ -202,6 +235,9 @@ class Store:
                     timezone,
                     time_mode,
                     longitude,
+                    owner_subject,
+                    tenant_organization,
+                    tenant_workspace,
                     json.dumps(chart, ensure_ascii=False, separators=(",", ":")),
                     datetime.now(UTC).isoformat(),
                 ),
@@ -211,30 +247,100 @@ class Store:
             raise RuntimeError("created profile was not found")
         return profile
 
-    def get_profile(self, profile_id: str) -> dict[str, object] | None:
+    def get_profile(
+        self,
+        profile_id: str,
+        scope: TenantScope | None = None,
+    ) -> dict[str, object] | None:
         """Load one profile by identifier, or return ``None`` when absent."""
 
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT * FROM profiles WHERE id = ?", (profile_id,)
-            ).fetchone()
+            if scope is None:
+                row = connection.execute(
+                    "SELECT * FROM profiles WHERE id = ?", (profile_id,)
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    """
+                    SELECT * FROM profiles
+                    WHERE id = ? AND owner_subject = ?
+                      AND tenant_organization = ? AND tenant_workspace = ?
+                    """,
+                    (
+                        profile_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                ).fetchone()
         return self._profile(row)
 
-    def list_profiles(self) -> list[dict[str, object]]:
+    def list_profiles(self, scope: TenantScope | None = None) -> list[dict[str, object]]:
         """Return profiles in deterministic creation order."""
 
         with self._connect() as connection:
-            rows = connection.execute("SELECT * FROM profiles ORDER BY created_at, id").fetchall()
+            if scope is None:
+                rows = connection.execute(
+                    "SELECT * FROM profiles ORDER BY created_at, id"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT * FROM profiles
+                    WHERE owner_subject = ? AND tenant_organization = ?
+                      AND tenant_workspace = ?
+                    ORDER BY created_at, id
+                    """,
+                    (scope.subject, scope.organization, scope.workspace),
+                ).fetchall()
         return [profile for row in rows if (profile := self._profile(row)) is not None]
 
-    def delete_profile(self, profile_id: str) -> bool:
+    def delete_profile(
+        self,
+        profile_id: str,
+        scope: TenantScope | None = None,
+    ) -> bool:
         """Delete a profile and compatibility calendars that reference it secondarily."""
 
         with self._connect() as connection:
-            connection.execute(
-                "DELETE FROM calendars WHERE secondary_profile_id = ?",
-                (profile_id,),
-            )
+            if scope is not None:
+                owned = connection.execute(
+                    """
+                    SELECT 1 FROM profiles
+                    WHERE id = ? AND owner_subject = ?
+                      AND tenant_organization = ? AND tenant_workspace = ?
+                    """,
+                    (
+                        profile_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                ).fetchone() is not None
+                if not owned:
+                    return False
+            if scope is None:
+                connection.execute(
+                    "DELETE FROM calendars WHERE secondary_profile_id = ?",
+                    (profile_id,),
+                )
+            else:
+                connection.execute(
+                    """
+                    DELETE FROM calendars
+                    WHERE secondary_profile_id = ? AND profile_id IN (
+                        SELECT id FROM profiles
+                        WHERE owner_subject = ? AND tenant_organization = ?
+                          AND tenant_workspace = ?
+                    )
+                    """,
+                    (
+                        profile_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                )
             cursor = connection.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         return cursor.rowcount == 1
 
@@ -248,11 +354,32 @@ class Store:
         rule: dict[str, object],
         kind: str = "rule",
         secondary_profile_id: str | None = None,
+        scope: TenantScope | None = None,
     ) -> dict[str, object]:
         """Insert a rule or compatibility calendar and return its stored form."""
 
         calendar_id = str(uuid4())
         with self._connect() as connection:
+            if scope is not None:
+                profile_ids = [profile_id]
+                if secondary_profile_id is not None:
+                    profile_ids.append(secondary_profile_id)
+                placeholders = ", ".join("?" for _ in profile_ids)
+                owned = connection.execute(
+                    f"""
+                    SELECT count(*) FROM profiles
+                    WHERE id IN ({placeholders}) AND owner_subject = ?
+                      AND tenant_organization = ? AND tenant_workspace = ?
+                    """,
+                    [
+                        *profile_ids,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ],
+                ).fetchone()[0]
+                if owned != len(profile_ids):
+                    raise PermissionError("profile is outside the caller tenant")
             connection.execute(
                 """
                 INSERT INTO calendars
@@ -272,25 +399,91 @@ class Store:
                     datetime.now(UTC).isoformat(),
                 ),
             )
-        calendar = self.get_calendar(calendar_id)
+        calendar = (
+            self.get_calendar(calendar_id)
+            if scope is None
+            else self.get_calendar(calendar_id, scope)
+        )
         if calendar is None:
             raise RuntimeError("created calendar was not found")
         return calendar
 
-    def get_calendar(self, calendar_id: str) -> dict[str, object] | None:
+    def get_calendar(
+        self,
+        calendar_id: str,
+        scope: TenantScope | None = None,
+    ) -> dict[str, object] | None:
         """Load one calendar by identifier, or return ``None`` when absent."""
 
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT * FROM calendars WHERE id = ?", (calendar_id,)
-            ).fetchone()
+            if scope is None:
+                row = connection.execute(
+                    "SELECT * FROM calendars WHERE id = ?", (calendar_id,)
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    """
+                    SELECT c.* FROM calendars AS c
+                    JOIN profiles AS p ON p.id = c.profile_id
+                    LEFT JOIN profiles AS sp ON sp.id = c.secondary_profile_id
+                    WHERE c.id = ? AND p.owner_subject = ?
+                      AND p.tenant_organization = ? AND p.tenant_workspace = ?
+                      AND (c.secondary_profile_id IS NULL OR (
+                          sp.owner_subject = ? AND sp.tenant_organization = ?
+                          AND sp.tenant_workspace = ?
+                      ))
+                    """,
+                    (
+                        calendar_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                ).fetchone()
         return self._calendar(row)
 
-    def list_calendars(self, profile_id: str | None = None) -> list[dict[str, object]]:
+    def list_calendars(
+        self,
+        profile_id: str | None = None,
+        scope: TenantScope | None = None,
+    ) -> list[dict[str, object]]:
         """Return calendars in deterministic order, optionally by primary profile."""
 
         with self._connect() as connection:
-            if profile_id is None:
+            if scope is not None:
+                conditions = [
+                    "p.owner_subject = ?",
+                    "p.tenant_organization = ?",
+                    "p.tenant_workspace = ?",
+                ]
+                parameters: list[object] = [
+                    scope.subject,
+                    scope.organization,
+                    scope.workspace,
+                ]
+                if profile_id is not None:
+                    conditions.append("c.profile_id = ?")
+                    parameters.append(profile_id)
+                rows = connection.execute(
+                    "SELECT c.* FROM calendars AS c "
+                    "JOIN profiles AS p ON p.id = c.profile_id "
+                    "LEFT JOIN profiles AS sp ON sp.id = c.secondary_profile_id WHERE "
+                    + " AND ".join(conditions)
+                    + " AND (c.secondary_profile_id IS NULL OR ("
+                    + "sp.owner_subject = ? AND sp.tenant_organization = ? "
+                    + "AND sp.tenant_workspace = ?))"
+                    + " ORDER BY c.created_at, c.id",
+                    [
+                        *parameters,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ],
+                ).fetchall()
+            elif profile_id is None:
                 rows = connection.execute(
                     "SELECT * FROM calendars ORDER BY created_at, id"
                 ).fetchall()
@@ -301,32 +494,124 @@ class Store:
                 ).fetchall()
         return [calendar for row in rows if (calendar := self._calendar(row)) is not None]
 
-    def list_calendars_for_profile(self, profile_id: str) -> list[dict[str, object]]:
+    def list_calendars_for_profile(
+        self,
+        profile_id: str,
+        scope: TenantScope | None = None,
+    ) -> list[dict[str, object]]:
         """Return calendars where a profile is either person in the match."""
 
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT * FROM calendars
-                WHERE profile_id = ? OR secondary_profile_id = ?
-                ORDER BY created_at, id
-                """,
-                (profile_id, profile_id),
-            ).fetchall()
+            if scope is None:
+                rows = connection.execute(
+                    """
+                    SELECT * FROM calendars
+                    WHERE profile_id = ? OR secondary_profile_id = ?
+                    ORDER BY created_at, id
+                    """,
+                    (profile_id, profile_id),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT c.* FROM calendars AS c
+                    JOIN profiles AS p ON p.id = c.profile_id
+                    LEFT JOIN profiles AS sp ON sp.id = c.secondary_profile_id
+                    WHERE (c.profile_id = ? OR c.secondary_profile_id = ?)
+                      AND p.owner_subject = ?
+                      AND p.tenant_organization = ? AND p.tenant_workspace = ?
+                      AND (c.secondary_profile_id IS NULL OR (
+                          sp.owner_subject = ? AND sp.tenant_organization = ?
+                          AND sp.tenant_workspace = ?
+                      ))
+                    ORDER BY c.created_at, c.id
+                    """,
+                    (
+                        profile_id,
+                        profile_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                ).fetchall()
         return [calendar for row in rows if (calendar := self._calendar(row)) is not None]
 
-    def delete_calendar(self, calendar_id: str) -> bool:
+    def delete_calendar(
+        self,
+        calendar_id: str,
+        scope: TenantScope | None = None,
+    ) -> bool:
         """Delete one local calendar metadata record."""
 
         with self._connect() as connection:
-            cursor = connection.execute("DELETE FROM calendars WHERE id = ?", (calendar_id,))
+            if scope is None:
+                cursor = connection.execute(
+                    "DELETE FROM calendars WHERE id = ?", (calendar_id,)
+                )
+            else:
+                cursor = connection.execute(
+                    """
+                    DELETE FROM calendars
+                    WHERE id = ? AND profile_id IN (
+                        SELECT id FROM profiles
+                        WHERE owner_subject = ? AND tenant_organization = ?
+                          AND tenant_workspace = ?
+                    ) AND (secondary_profile_id IS NULL OR secondary_profile_id IN (
+                        SELECT id FROM profiles
+                        WHERE owner_subject = ? AND tenant_organization = ?
+                          AND tenant_workspace = ?
+                    ))
+                    """,
+                    (
+                        calendar_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                )
         return cursor.rowcount == 1
 
-    def mark_synced(self, calendar_id: str) -> None:
+    def mark_synced(
+        self,
+        calendar_id: str,
+        scope: TenantScope | None = None,
+    ) -> None:
         """Record the UTC time at which a calendar was last published."""
 
         with self._connect() as connection:
-            connection.execute(
-                "UPDATE calendars SET last_synced_at = ? WHERE id = ?",
-                (datetime.now(UTC).isoformat(), calendar_id),
-            )
+            if scope is None:
+                connection.execute(
+                    "UPDATE calendars SET last_synced_at = ? WHERE id = ?",
+                    (datetime.now(UTC).isoformat(), calendar_id),
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE calendars SET last_synced_at = ?
+                    WHERE id = ? AND profile_id IN (
+                        SELECT id FROM profiles
+                        WHERE owner_subject = ? AND tenant_organization = ?
+                          AND tenant_workspace = ?
+                    ) AND (secondary_profile_id IS NULL OR secondary_profile_id IN (
+                        SELECT id FROM profiles
+                        WHERE owner_subject = ? AND tenant_organization = ?
+                          AND tenant_workspace = ?
+                    ))
+                    """,
+                    (
+                        datetime.now(UTC).isoformat(),
+                        calendar_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                )

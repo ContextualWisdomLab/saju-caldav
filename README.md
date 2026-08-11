@@ -24,7 +24,8 @@
   미리보기와, 명시 범위의 양끝 포함 최대 730일 검색
 - 비공개·제한 공개·공개 표시를 고르는 RFC 5545 iCalendar 이벤트
 - Radicale을 통한 RFC 4791 CalDAV 캘린더 발행
-- HTTP Basic으로 보호되는 한국어 운영자 웹 콘솔
+- HTTP Basic 또는 Keyverse OIDC bearer로 보호되는 한국어 운영자 웹 콘솔
+- 검증된 Keyverse `sub`·조직·workspace별 프로필·캘린더 격리
 - SQLite 메타데이터와 소유자 전용 CalDAV 저장소
 
 첫 화면의 `두 사람의 좋은 시간 찾기`에서 저장된 프로필을 선택하거나 두 사람의
@@ -69,6 +70,11 @@ docker compose up -d --build
 TLS 역방향 프록시 또는 VPN 안에서만 접근해야 합니다. 상세 절차는
 [배포 가이드](docs/DEPLOYMENT.md)에 있습니다.
 
+Keyverse를 연결할 때에는 [OIDC 연동 경계](docs/security/KEYVERSE.md)의 exact
+issuer/audience/JWKS 설정을 먼저 준비하고 `AUTH_MODE=oidc`를 명시합니다. 기본
+값은 기존 Basic 인증이며, 실제 Keyverse client convergence와 토큰 수용·거부
+증거 없이 운영 모드를 바꾸지 않습니다.
+
 ## 개발 검증
 
 ```bash
@@ -100,6 +106,7 @@ uv run python scripts/acceptance_smoke.py
 - [ADR 색인과 개인정보 삭제 결정](docs/adr/README.md)
 - [제품 요구사항](docs/product/PRD.md) · [기술 요구사항](docs/technical/TRD.md)
 - [위협 모델](docs/security/THREAT_MODEL.md) · [테스트 전략](docs/testing/TEST_STRATEGY.md)
+- [Keyverse OIDC 연동](docs/security/KEYVERSE.md)
 - [운영성과](docs/operations/OPERABILITY.md) · [요구사항 추적](docs/TRACEABILITY.md)
 - [근거·APA 7 기록](docs/doctoring/README.md)
 - [배포와 CalDAV 연결](docs/DEPLOYMENT.md)
