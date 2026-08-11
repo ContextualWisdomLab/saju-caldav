@@ -17,6 +17,7 @@ from app.store import Store
 class RecordingPublisher:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
+        self.delete_calls: list[dict[str, str]] = []
 
     def sync(self, calendar_id, slug, calendar_name, visibility, windows):
         if visibility not in {"private", "confidential", "public"}:
@@ -37,6 +38,9 @@ class RecordingPublisher:
             collection_url=f"https://cal.example/operator/{slug}/",
             event_count=len(windows),
         )
+
+    def delete(self, calendar_id, slug):
+        self.delete_calls.append({"calendar_id": calendar_id, "slug": slug})
 
 
 def _client(tmp_path: Path) -> tuple[TestClient, RecordingPublisher]:
@@ -176,10 +180,15 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert "생활 시간" in page.text
     assert 'id="compatibility-result"' in page.text
     assert "출생 도시" in page.text
+    assert 'id="profile-list"' in page.text
+    assert "연결된 CalDAV 캘린더도 함께 삭제" in page.text
     assert 'name="longitude"' not in page.text
     assert 'name="visibility"' in page.text
     assert client.get("/static/styles.css").status_code == 200
-    assert client.get("/static/app.js").status_code == 200
+    script = client.get("/static/app.js")
+    assert script.status_code == 200
+    assert "출생 정보 삭제" in script.text
+    assert "연결된 캘린더" in script.text
 
 
 def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
@@ -751,6 +760,133 @@ def test_api_not_found_duplicate_and_unavailable_publisher_paths(tmp_path: Path)
     assert first_delete.status_code == 204
     assert second_delete.status_code == 404
     assert profile_delete.status_code == 204
+
+
+def test_delete_synced_calendar_removes_remote_collection_before_metadata(
+    tmp_path: Path,
+) -> None:
+    client, publisher = _client(tmp_path)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+
+    synced = client.post(
+        f"/api/calendars/{calendar['id']}/sync",
+        auth=_auth(),
+        json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+    )
+    assert synced.status_code == 200, synced.text
+
+    deleted = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+
+    assert deleted.status_code == 204
+    assert publisher.delete_calls == [
+        {"calendar_id": calendar["id"], "slug": calendar["slug"]}
+    ]
+    assert client.get("/api/calendars", auth=_auth()).json() == []
+
+
+def test_delete_synced_profile_removes_primary_and_secondary_remote_collections(
+    tmp_path: Path,
+) -> None:
+    client, publisher = _client(tmp_path)
+    primary = _create_profile(client)
+    secondary = _create_secondary_profile(client)
+    primary_calendar = _create_calendar(client, str(primary["id"]))
+    compatibility = client.post(
+        "/api/compatibility/calendars",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "name": "둘이 좋은 시간",
+            "slug": "pair-delete-check",
+        },
+    )
+    assert compatibility.status_code == 201, compatibility.text
+
+    for calendar in (primary_calendar, compatibility.json()):
+        response = client.post(
+            f"/api/calendars/{calendar['id']}/sync",
+            auth=_auth(),
+            json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+        )
+        assert response.status_code == 200, response.text
+
+    deleted = client.delete(f"/api/profiles/{primary['id']}", auth=_auth())
+
+    assert deleted.status_code == 204
+    assert {call["slug"] for call in publisher.delete_calls} == {
+        primary_calendar["slug"],
+        "pair-delete-check",
+    }
+    assert client.get("/api/profiles", auth=_auth()).json() == [secondary]
+    assert client.get("/api/calendars", auth=_auth()).json() == []
+
+
+def test_synced_delete_fails_closed_when_remote_publisher_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    store = Store(tmp_path / "unavailable-delete.db")
+    app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=main_module.UnavailablePublisher(),
+    )
+    client = TestClient(app)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+
+    with sqlite3.connect(tmp_path / "unavailable-delete.db") as connection:
+        connection.execute(
+            "UPDATE calendars SET last_synced_at = ? WHERE id = ?",
+            ("2026-08-11T00:00:00+00:00", calendar["id"]),
+        )
+
+    deleted = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+
+    assert deleted.status_code == 502
+    remaining = client.get("/api/calendars", auth=_auth()).json()
+    assert len(remaining) == 1
+    assert remaining[0]["id"] == calendar["id"]
+    assert remaining[0]["last_synced_at"] == "2026-08-11T00:00:00+00:00"
+
+
+def test_delete_operations_report_race_after_metadata_disappears(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client, _ = _client(tmp_path)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+    store = Store(tmp_path / "saju.db")
+
+    monkeypatch.setattr(store, "get_profile", lambda profile_id: profile)
+    monkeypatch.setattr(store, "list_calendars_for_profile", lambda profile_id: [])
+    monkeypatch.setattr(store, "delete_profile", lambda profile_id: False)
+    profile_app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=RecordingPublisher(),
+    )
+    profile_response = TestClient(profile_app).delete(
+        f"/api/profiles/{profile['id']}", auth=_auth()
+    )
+    assert profile_response.status_code == 404
+
+    monkeypatch.setattr(store, "get_calendar", lambda calendar_id: calendar)
+    monkeypatch.setattr(store, "delete_calendar", lambda calendar_id: False)
+    calendar_app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=RecordingPublisher(),
+    )
+    calendar_response = TestClient(calendar_app).delete(
+        f"/api/calendars/{calendar['id']}", auth=_auth()
+    )
+    assert calendar_response.status_code == 404
 
 
 def test_invalid_birth_date_and_missing_static_index_are_reported(tmp_path: Path) -> None:

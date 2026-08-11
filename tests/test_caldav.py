@@ -178,6 +178,7 @@ class _Recorder(BaseHTTPRequestHandler):
 
     do_MKCALENDAR = _record
     do_PUT = _record
+    do_DELETE = _record
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -211,3 +212,21 @@ def test_publisher_creates_collection_and_puts_stable_resource() -> None:
     assert _Recorder.requests[1][1].endswith(".ics")
     assert b"BEGIN:VEVENT" in _Recorder.requests[1][2]
     assert b"CLASS:CONFIDENTIAL" in _Recorder.requests[1][2]
+
+
+def test_publisher_deletes_collection_idempotently() -> None:
+    _Recorder.requests = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        publisher = CalDavPublisher(
+            f"http://127.0.0.1:{server.server_port}", "caluser", "secret", timeout=2
+        )
+        publisher.delete("calendar-1", "my-custom-hours")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert _Recorder.requests == [("DELETE", "/caluser/my-custom-hours/", b"")]

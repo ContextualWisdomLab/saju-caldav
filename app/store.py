@@ -283,6 +283,20 @@ class Store:
                 ).fetchall()
         return [calendar for row in rows if (calendar := self._calendar(row)) is not None]
 
+    def list_calendars_for_profile(self, profile_id: str) -> list[dict[str, object]]:
+        """Return calendars where a profile is either person in the match."""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM calendars
+                WHERE profile_id = ? OR secondary_profile_id = ?
+                ORDER BY created_at, id
+                """,
+                (profile_id, profile_id),
+            ).fetchall()
+        return [calendar for row in rows if (calendar := self._calendar(row)) is not None]
+
     def delete_calendar(self, calendar_id: str) -> bool:
         with self._connect() as connection:
             cursor = connection.execute("DELETE FROM calendars WHERE id = ?", (calendar_id,))

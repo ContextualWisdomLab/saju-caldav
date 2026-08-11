@@ -41,6 +41,8 @@ class Publisher(Protocol):
         windows: list[MatchingWindow],
     ) -> SyncResult: ...
 
+    def delete(self, calendar_id: str, slug: str) -> None: ...
+
 
 class UnavailablePublisher:
     def sync(
@@ -52,6 +54,10 @@ class UnavailablePublisher:
         windows: list[MatchingWindow],
     ) -> SyncResult:
         del calendar_id, slug, calendar_name, visibility, windows
+        raise RuntimeError("CalDAV publisher credentials are not configured")
+
+    def delete(self, calendar_id: str, slug: str) -> None:
+        del calendar_id, slug
         raise RuntimeError("CalDAV publisher credentials are not configured")
 
 
@@ -366,6 +372,16 @@ def create_app(
 
     serialized_calendar_operation = Depends(serialize_calendar_operation)
 
+    def delete_published_collection(calendar: dict[str, object]) -> None:
+        """Erase a remote CalDAV collection before deleting local metadata."""
+
+        if not calendar.get("last_synced_at"):
+            return
+        try:
+            caldav_publisher.delete(str(calendar["id"]), str(calendar["slug"]))
+        except RuntimeError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
     def require_operator(
         credentials: HTTPBasicCredentials | None = Depends(security),  # noqa: B008
     ) -> None:
@@ -477,6 +493,10 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def delete_profile(profile_id: str) -> None:
+        if metadata_store.get_profile(profile_id) is None:
+            raise HTTPException(status_code=404, detail="profile not found")
+        for calendar in metadata_store.list_calendars_for_profile(profile_id):
+            delete_published_collection(calendar)
         if not metadata_store.delete_profile(profile_id):
             raise HTTPException(status_code=404, detail="profile not found")
 
@@ -521,6 +541,10 @@ def create_app(
         dependencies=[serialized_calendar_operation],
     )
     def delete_calendar(calendar_id: str) -> None:
+        calendar = metadata_store.get_calendar(calendar_id)
+        if calendar is None:
+            raise HTTPException(status_code=404, detail="calendar not found")
+        delete_published_collection(calendar)
         if not metadata_store.delete_calendar(calendar_id):
             raise HTTPException(status_code=404, detail="calendar not found")
 

@@ -158,3 +158,18 @@ class CalDavPublisher:
                 {200, 201, 204},
             )
         return SyncResult(collection_url=collection_url, event_count=len(windows))
+
+    def delete(self, calendar_id: str, slug: str) -> None:
+        """Remove a published collection before its local metadata is erased."""
+
+        del calendar_id
+        user_path = quote(self.username, safe="")
+        slug_path = quote(slug, safe="")
+        collection_url = f"{self.base_url}/{user_path}/{slug_path}/"
+        self._request(
+            "DELETE",
+            collection_url,
+            b"",
+            "application/octet-stream",
+            {200, 204, 404},
+        )
