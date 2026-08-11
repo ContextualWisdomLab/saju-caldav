@@ -517,7 +517,7 @@ $("#profile-list").addEventListener("click", async (event) => {
     try {
       await refresh();
     } catch (refreshError) {
-      notify(`삭제는 완료했지만 목록을 새로고침하지 못했습니다: ${refreshError.message}`, true);
+      notify(`출생 정보 삭제 완료, 목록 갱신 실패: ${refreshError.message}`, true);
     }
   } catch (error) {
     notify(`출생 정보를 삭제하지 못했습니다: ${error.message}`, true);

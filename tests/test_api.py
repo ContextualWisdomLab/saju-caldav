@@ -192,7 +192,7 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert "is_leap_month" in script.text
     assert "aria-label" in script.text
     assert "refreshPairProfileChoices" in script.text
-    assert "삭제는 완료했지만 목록을 새로고침하지 못했습니다" in script.text
+    assert "출생 정보 삭제 완료, 목록 갱신 실패" in script.text
 
 
 def test_acceptance_profile_calendar_preview_and_sync(tmp_path: Path) -> None:
@@ -1232,4 +1232,3 @@ def test_delete_attempts_remote_cleanup_when_sync_marking_fails(
     assert publisher.delete_calls == [
         {"calendar_id": calendar["id"], "slug": calendar["slug"]}
     ]
-
