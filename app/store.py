@@ -358,6 +358,8 @@ class Store:
     ) -> dict[str, object]:
         """Insert a rule or compatibility calendar and return its stored form."""
 
+        if secondary_profile_id == profile_id:
+            raise ValueError("primary and secondary profiles must differ")
         calendar_id = str(uuid4())
         with self._connect() as connection:
             if scope is not None:
@@ -413,6 +415,8 @@ class Store:
                     datetime.now(UTC).isoformat(),
                 ),
             )
+        # Keep the legacy Basic call shape for integrations that override the
+        # unscoped lookup; tenant-aware callers still pass the verified scope.
         calendar = (
             self.get_calendar(calendar_id)
             if scope is None

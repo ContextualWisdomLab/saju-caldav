@@ -26,7 +26,9 @@ ABAC/RBAC를 직접 검증하도록 요구한다.
    같은 범위로 제한한다. 다른 범위는 정보 노출을 줄이기 위해 404를 반환한다.
 3. `AUTH_MODE=basic`을 하위 호환 기본값으로 유지하고, `hybrid`는 명시적으로
    구성된 OIDC 검증기와 Basic을 함께 쓰는 이행 모드로만 둔다. `oidc`와 `hybrid`는
-   issuer/audience/org/workspace/JWKS 설정이 없으면 프로세스를 시작하지 않는다.
+   issuer/audience/org/workspace 설정이 없으면 프로세스를 시작하지 않는다.
+   `OIDC_JWKS_URL`은 선택 항목이며 비어 있으면 issuer의
+   `/protocol/openid-connect/certs` 경로를 기본값으로 계산한다.
 4. Keyverse RP 등록은 secret-free desired-state 템플릿과 Keyverse의
    validate→PUT→convergence 절차로 분리한다. admin token, client secret, 실제
    출생 데이터는 이 저장소에 넣지 않는다.

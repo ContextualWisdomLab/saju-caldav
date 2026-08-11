@@ -26,7 +26,7 @@
 - Radicale을 통한 RFC 4791 CalDAV 캘린더 발행
 - HTTP Basic 또는 Keyverse OIDC bearer로 보호되는 한국어 운영자 웹 콘솔
 - 검증된 Keyverse `sub`·조직·workspace별 프로필·캘린더 격리
-- SQLite 메타데이터와 소유자 전용 CalDAV 저장소
+- SQLite 메타데이터의 Keyverse 범위 격리와 공용 운영자 계정의 owner-only CalDAV 저장소
 
 첫 화면의 `두 사람의 공통 관계 후보 찾기`에서 저장된 프로필을 선택하거나 두 사람의
 생년월일과 탄생 시를 바로 입력하면 됩니다. 기본 검색은 프로필 시간대의 지금
@@ -76,9 +76,11 @@ TLS 역방향 프록시 또는 VPN 안에서만 접근해야 합니다. 상세 �
 [배포 가이드](docs/DEPLOYMENT.md)에 있습니다.
 
 Keyverse를 연결할 때에는 [OIDC 연동 경계](docs/security/KEYVERSE.md)의 exact
-issuer/audience/JWKS 설정을 먼저 준비하고 `AUTH_MODE=oidc`를 명시합니다. 기본
-값은 기존 Basic 인증이며, 실제 Keyverse client convergence와 토큰 수용·거부
-증거 없이 운영 모드를 바꾸지 않습니다.
+issuer/audience/JWKS 설정을 먼저 준비합니다. `AUTH_MODE=hybrid`는 이행 모드로,
+같은 OIDC 설정을 요구하면서 검증된 Bearer와 기존 Basic을 함께 허용합니다.
+Bearer 검증이 실패하면 Basic으로 우회하지 않습니다. client convergence와 토큰
+수용·거부 증거를 확보한 뒤 `AUTH_MODE=oidc`로 전환합니다. 기본값은 기존 Basic
+인증입니다.
 
 ## 개발 검증
 

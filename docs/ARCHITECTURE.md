@@ -28,6 +28,11 @@ flowchart LR
   Keyverse validate→PUT→convergence와 downstream 수용·거부 증거 뒤에만
   `deployment-restricted`를 해제합니다.
 - Radicale은 별도 자격 증명과 `owner_only` 권한으로 컬렉션을 보호합니다.
+- OIDC `sub`·조직·workspace 격리는 웹/API와 SQLite 경계에만 적용됩니다. 직접
+  CalDAV 연결은 하나의 설정된 `CALDAV_USERNAME` 경로와 자격 증명을 공유하므로
+  Radicale 컬렉션 URL 자체가 Keyverse subject별 격리를 제공한다고 주장하지
+  않습니다. subject별 CalDAV 계정·ACL 매핑은 별도 설계와 교차 범위 테스트 뒤에
+  추가해야 합니다.
 - 애플리케이션은 CalDAV 서버에 `MKCALENDAR`와 결정적 `PUT`만 수행합니다.
 - 한국 음력 입력은 평달·윤달을 구분해 원본 그대로 저장하고, 계산 경계에서
   `korean-lunar-calendar` 0.4.0으로 양력 현지 시각을 만듭니다.

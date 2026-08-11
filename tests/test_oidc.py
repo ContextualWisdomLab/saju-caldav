@@ -13,7 +13,6 @@ from fastapi.security import HTTPBasicCredentials
 from fastapi.testclient import TestClient
 
 import app.main as main_module
-import app.oidc as oidc_module
 from app.auth import AuthConfig, AuthenticationError, Authenticator
 from app.identity import AuthIdentity, TenantScope
 from app.oidc import OidcSettings, OidcVerificationError, OidcVerifier
@@ -62,6 +61,7 @@ def _token(
     private_key: rsa.RSAPrivateKey,
     *,
     now: float | None = None,
+    kid: str = "key-1",
     **changes: object,
 ) -> str:
     current = int(now if now is not None else time.time())
@@ -76,7 +76,7 @@ def _token(
         "role": "member",
     }
     claims.update(changes)
-    return jwt.encode(claims, private_key, algorithm="RS256", headers={"kid": "key-1"})
+    return jwt.encode(claims, private_key, algorithm="RS256", headers={"kid": kid})
 
 
 def _verifier(
@@ -172,14 +172,14 @@ def test_oidc_loader_validates_http_responses(monkeypatch) -> None:
         raise_for_status=lambda: None,
         json=lambda: {"keys": []},
     )
-    monkeypatch.setattr(oidc_module.httpx, "get", lambda *_args, **_kwargs: valid_response)
+    monkeypatch.setattr("app.oidc.httpx.get", lambda *_args, **_kwargs: valid_response)
     assert OidcVerifier._load_jwks("https://keyverse.example/certs") == {"keys": []}
 
     invalid_response = SimpleNamespace(
         raise_for_status=lambda: None,
         json=lambda: ["not-an-object"],
     )
-    monkeypatch.setattr(oidc_module.httpx, "get", lambda *_args, **_kwargs: invalid_response)
+    monkeypatch.setattr("app.oidc.httpx.get", lambda *_args, **_kwargs: invalid_response)
     with pytest.raises(OidcVerificationError, match="invalid JWKS"):
         OidcVerifier._load_jwks("https://keyverse.example/certs")
 
@@ -304,6 +304,44 @@ def test_oidc_verifier_rejects_rotated_or_malformed_jwks(
         _verifier(jwk, now=1_800_000_000.0).verify(empty_kid)
 
 
+def test_oidc_verifier_accepts_key_after_forced_jwks_refresh(
+    signing_material: tuple[rsa.RSAPrivateKey, dict[str, str]],
+) -> None:
+    private_key, jwk = signing_material
+    rotated_jwk = {**jwk, "kid": "key-2"}
+    documents = iter(({"keys": [jwk]}, {"keys": [rotated_jwk]}))
+    calls: list[str] = []
+
+    def loader(url: str) -> dict[str, object]:
+        calls.append(url)
+        return next(documents)
+
+    verifier = _verifier(jwk, now=1_800_000_000.0, loader=loader)
+    token = _token(private_key, now=1_800_000_000.0, kid="key-2")
+
+    assert verifier.verify(token).scope.subject == "user-1"
+    assert calls == [_settings().jwks_url, _settings().jwks_url]
+
+
+def test_oidc_verifier_throttles_repeated_unknown_key_refreshes(
+    signing_material: tuple[rsa.RSAPrivateKey, dict[str, str]],
+) -> None:
+    private_key, jwk = signing_material
+    calls: list[str] = []
+
+    def loader(url: str) -> dict[str, object]:
+        calls.append(url)
+        return {"keys": [jwk]}
+
+    verifier = _verifier(jwk, now=1_800_000_000.0, loader=loader)
+    token = _token(private_key, now=1_800_000_000.0, kid="unknown")
+    for _ in range(2):
+        with pytest.raises(OidcVerificationError, match="unknown signing key"):
+            verifier.verify(token)
+
+    assert calls == [_settings().jwks_url, _settings().jwks_url]
+
+
 def test_oidc_loader_turns_network_failure_into_safe_error(monkeypatch) -> None:
     def fail(*_args, **_kwargs):
         raise OSError("network secret should not escape")
@@ -389,9 +427,10 @@ def test_oidc_api_scopes_profiles_and_calendars_to_verified_subject(tmp_path: Pa
         headers={"Authorization": "Bearer token-b"},
         json={"start_date": "2026-01-01", "end_date": "2026-01-01"},
     ).status_code == 404
-    assert client.delete(
+    delete_response = client.delete(
         f"/api/calendars/{calendar_id}", headers={"Authorization": "Bearer token-b"}
-    ).status_code == 404
+    )
+    assert delete_response.status_code == 404
 
 
 def test_oidc_api_compatibility_and_permission_races_are_scoped(
@@ -540,7 +579,7 @@ def test_oidc_verifier_rejects_non_mapping_decoded_claims(
     monkeypatch,
 ) -> None:
     private_key, jwk = signing_material
-    monkeypatch.setattr(oidc_module.jwt, "decode", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr("app.oidc.jwt.decode", lambda *_args, **_kwargs: [])
     with pytest.raises(OidcVerificationError, match="token claims"):
         _verifier(jwk, now=1_800_000_000).verify(
             _token(private_key, now=1_800_000_000)
@@ -600,6 +639,17 @@ def test_scoped_store_blocks_cross_tenant_calendar_access(tmp_path: Path) -> Non
         rule={"limit": 1},
         scope=scope_a,
     )
+    with pytest.raises(ValueError, match="must differ"):
+        store.create_calendar(
+            profile_id=str(primary["id"]),
+            secondary_profile_id=str(primary["id"]),
+            name="same-person",
+            slug="same-person-calendar",
+            visibility="private",
+            kind="compatibility",
+            rule={},
+            scope=scope_a,
+        )
     with pytest.raises(PermissionError):
         store.create_calendar(
             profile_id=str(primary["id"]),

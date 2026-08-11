@@ -485,6 +485,11 @@ def create_app(
             return {}
         return {"scope": identity.scope}
 
+    def scoped_identity(identity: AuthIdentity) -> AuthIdentity | None:
+        """Return the tenant identity only when Keyverse authorization is active."""
+
+        return None if selected_auth_mode == "basic" else identity
+
     api = APIRouter(prefix="/api")
 
     @application.get("/health")
@@ -686,7 +691,7 @@ def create_app(
     ) -> dict[str, object]:
         """Preview current rule or compatibility matches without publishing them."""
 
-        route_identity = None if selected_auth_mode == "basic" else identity
+        route_identity = scoped_identity(identity)
         calendar = metadata_store.get_calendar(calendar_id, *store_scope_args(identity))
         if calendar is None:
             raise HTTPException(status_code=404, detail="calendar not found")
@@ -710,6 +715,8 @@ def create_app(
                 "primary_name": primary["name"],
                 "secondary_name": secondary["name"],
                 "method": "balanced_branch_harmony",
+                "interpretation": "shared_branch_relations",
+                "gender_policy": "record_only",
                 "include_overnight": compatibility_request.include_overnight,
                 "events": [_candidate_json(candidate) for candidate in candidates],
             }
@@ -739,7 +746,7 @@ def create_app(
         primary, secondary, candidates = _compatibility_candidates(
             metadata_store,
             requested,
-            None if selected_auth_mode == "basic" else identity,
+            scoped_identity(identity),
         )
         return {
             "count": len(candidates),
@@ -763,7 +770,7 @@ def create_app(
     ) -> dict[str, object]:
         """Persist a two-profile compatibility calendar definition."""
 
-        route_identity = None if selected_auth_mode == "basic" else identity
+        route_identity = scoped_identity(identity)
         _compatibility_context(
             metadata_store,
             requested.primary_profile_id,
@@ -804,7 +811,7 @@ def create_app(
     ) -> dict[str, object]:
         """Generate current matches, publish them, and record the sync marker."""
 
-        route_identity = None if selected_auth_mode == "basic" else identity
+        route_identity = scoped_identity(identity)
         calendar, windows = _windows(metadata_store, calendar_id, requested, route_identity)
         try:
             result = caldav_publisher.sync(

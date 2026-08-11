@@ -15,6 +15,8 @@ import jwt
 
 from app.identity import AuthIdentity, TenantScope
 
+MIN_FORCED_JWKS_REFRESH_SECONDS = 30.0
+
 
 class OidcVerificationError(ValueError):
     """Raised when a bearer token cannot prove the configured identity."""
@@ -114,6 +116,7 @@ class OidcVerifier:
         self._clock = clock or time.time
         self._jwks: dict[str, dict[str, Any]] = {}
         self._jwks_loaded_at = 0.0
+        self._jwks_forced_at = 0.0
         self._jwks_lock = Lock()
 
     @staticmethod
@@ -146,30 +149,40 @@ class OidcVerifier:
                 and now - self._jwks_loaded_at < self.settings.jwks_cache_seconds
             ):
                 return self._jwks
-            document = self._jwks_loader(self.settings.jwks_url)
-            if not isinstance(document, dict):
-                raise OidcVerificationError("invalid JWKS document")
-            raw_keys = document.get("keys")
-            if not isinstance(raw_keys, list) or len(raw_keys) > 64:
-                raise OidcVerificationError("invalid JWKS document")
-            keys: dict[str, dict[str, Any]] = {}
-            for raw_key in raw_keys:
-                if not isinstance(raw_key, dict):
-                    continue
-                kid = raw_key.get("kid")
-                if (
-                    isinstance(kid, str)
-                    and 1 <= len(kid) <= 256
-                    and raw_key.get("kty") == "RSA"
-                    and raw_key.get("alg", "RS256") == "RS256"
-                    and raw_key.get("use", "sig") == "sig"
+            if force:
+                if self._jwks and (
+                    now - self._jwks_forced_at < MIN_FORCED_JWKS_REFRESH_SECONDS
                 ):
-                    keys[kid] = raw_key
-            if not keys:
-                raise OidcVerificationError("JWKS contains no usable signing keys")
+                    return self._jwks
+                self._jwks_forced_at = now
+
+        # Keep the network call outside the lock. A slow or unavailable issuer
+        # must not block unrelated requests that can use the cached key set.
+        document = self._jwks_loader(self.settings.jwks_url)
+        if not isinstance(document, dict):
+            raise OidcVerificationError("invalid JWKS document")
+        raw_keys = document.get("keys")
+        if not isinstance(raw_keys, list) or len(raw_keys) > 64:
+            raise OidcVerificationError("invalid JWKS document")
+        keys: dict[str, dict[str, Any]] = {}
+        for raw_key in raw_keys:
+            if not isinstance(raw_key, dict):
+                continue
+            kid = raw_key.get("kid")
+            if (
+                isinstance(kid, str)
+                and 1 <= len(kid) <= 256
+                and raw_key.get("kty") == "RSA"
+                and raw_key.get("alg", "RS256") == "RS256"
+                and raw_key.get("use", "sig") == "sig"
+            ):
+                keys[kid] = raw_key
+        if not keys:
+            raise OidcVerificationError("JWKS contains no usable signing keys")
+        with self._jwks_lock:
             self._jwks = keys
             self._jwks_loaded_at = now
-            return keys
+        return keys
 
     def verify(self, token: str) -> AuthIdentity:
         """Validate signature, issuer, audience, time, and Keyverse claims."""
@@ -244,7 +257,7 @@ class OidcVerifier:
             raise OidcVerificationError("token organization is not allowed")
         if workspace != self.settings.required_workspace:
             raise OidcVerificationError("token workspace is not allowed")
-        if not isinstance(role, str) or role not in self.settings.allowed_roles:
+        if role not in self.settings.allowed_roles:
             raise OidcVerificationError("token role is not allowed")
         now = self._clock()
         expires_at = claims.get("exp")

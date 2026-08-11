@@ -64,7 +64,18 @@ def test_keyverse_oidc_contract_is_secret_free_and_opt_in() -> None:
     assert template["attributes"]["pkce.code.challenge.method"] == "S256"
     assert template["fullScopeAllowed"] is False
     assert template["defaultClientScopes"] == ["basic", "profile", "email"]
-    assert "client-secret" not in json.dumps(template)
+
+    def contains_secret_key(value: object) -> bool:
+        if isinstance(value, dict):
+            return any(
+                "secret" in str(key).lower() or contains_secret_key(child)
+                for key, child in value.items()
+            )
+        if isinstance(value, list):
+            return any(contains_secret_key(item) for item in value)
+        return False
+
+    assert not contains_secret_key(template)
     assert "validate" in keyverse_doc and "convergence" in keyverse_doc
 
 
