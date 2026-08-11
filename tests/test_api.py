@@ -1144,13 +1144,13 @@ def test_profile_erasure_review_contracts_are_enforced(tmp_path: Path) -> None:
     styles = client.get("/static/styles.css").text
 
     assert "profile.birth_calendar === \"lunar\" && profile.is_leap_month" in script
-    assert "aria-label=\"\${escapeHtml(profile.name)} 출생 정보 삭제\"" in script
+    assert "aria-label=\"${escapeHtml(profile.name)} 출생 정보 삭제\"" in script
     assert "function refreshPairProfileChoices()" in script
     refresh_call = script.index("refreshPairProfileChoices();")
     empty_profiles = script.index("if (!state.profiles.length)", refresh_call)
     assert refresh_call < empty_profiles
-    assert '\$("#chart-profile-name").textContent = "";' in script
-    assert '\$("#pillars").textContent = "";' in script
+    assert '$("#chart-profile-name").textContent = "";' in script
+    assert '$("#pillars").textContent = "";' in script
     assert "출생 정보 삭제 완료, 목록 갱신 실패:" in script
     strong_rule = styles.split(".profile-copy strong {", 1)[1].split("}", 1)[0]
     assert "overflow-wrap: anywhere;" in strong_rule
