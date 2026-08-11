@@ -1136,3 +1136,60 @@ def test_calendar_delete_waits_for_in_flight_sync(tmp_path: Path, monkeypatch) -
     assert not delete_reached_store_during_sync
     assert sync_response.status_code == 200
     assert delete_response.status_code == 204
+
+def test_profile_erasure_review_contracts_are_enforced(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    script = client.get("/static/app.js").text
+    styles = client.get("/static/styles.css").text
+
+    assert "profile.birth_calendar === \"lunar\" && profile.is_leap_month" in script
+    assert "aria-label=\"\${escapeHtml(profile.name)} 출생 정보 삭제\"" in script
+    assert "function refreshPairProfileChoices()" in script
+    refresh_call = script.index("refreshPairProfileChoices();")
+    empty_profiles = script.index("if (!state.profiles.length)", refresh_call)
+    assert refresh_call < empty_profiles
+    assert '\$("#chart-profile-name").textContent = "";' in script
+    assert '\$("#pillars").textContent = "";' in script
+    assert "출생 정보 삭제 완료, 목록 갱신 실패:" in script
+    strong_rule = styles.split(".profile-copy strong {", 1)[1].split("}", 1)[0]
+    assert "overflow-wrap: anywhere;" in strong_rule
+
+
+def test_delete_attempts_remote_cleanup_when_sync_marking_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store = Store(tmp_path / "mark-failure.db")
+    publisher = RecordingPublisher()
+    app = main_module.create_app(
+        store=store,
+        username="operator",
+        password="correct-horse-battery-staple",
+        publisher=publisher,
+    )
+    client = TestClient(app)
+    profile = _create_profile(client)
+    calendar = _create_calendar(client, str(profile["id"]))
+
+    def fail_mark_synced(calendar_id: str) -> None:
+        del calendar_id
+        raise RuntimeError("synthetic sync marker failure")
+
+    monkeypatch.setattr(store, "mark_synced", fail_mark_synced)
+
+    with pytest.raises(RuntimeError, match="synthetic sync marker failure"):
+        client.post(
+            f"/api/calendars/{calendar['id']}/sync",
+            auth=_auth(),
+            json={"start_date": "2000-01-01", "end_date": "2000-01-01"},
+        )
+
+    deleted = client.delete(f"/api/calendars/{calendar['id']}", auth=_auth())
+
+    assert deleted.status_code == 204
+    assert publisher.calls
+    assert publisher.delete_calls == [
+        {"calendar_id": calendar["id"], "slug": calendar["slug"]}
+    ]
+
