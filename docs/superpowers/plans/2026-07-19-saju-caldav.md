@@ -6,7 +6,7 @@
 
 **Architecture:** A FastAPI process owns chart calculation, safe rule matching, SQLite metadata, the operator UI, and a narrow CalDAV publisher. A separate Radicale process owns protocol-compatible calendar collections and resources. Docker Compose runs both from one pinned Python image.
 
-**Tech Stack:** Python 3.12, FastAPI 0.139.2, lunar-python 1.4.8, icalendar 7.2.0, Radicale 3.7.6, SQLite, dependency-free HTML/CSS/JavaScript, pytest, Podman/Docker Compose.
+**Tech Stack:** Python 3.12, FastAPI 0.140.0, lunar-python 1.4.8, icalendar 7.2.2, Radicale 3.7.7, SQLite, dependency-free HTML/CSS/JavaScript, pytest, Podman/Docker Compose. Runtime versions are declared in `pyproject.toml`, resolved in `uv.lock`, and exported with hashes to `requirements.lock` for the image build.
 
 ## Global Constraints
 

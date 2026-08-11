@@ -92,6 +92,7 @@ uv run python scripts/acceptance_smoke.py
 
 - [역법 조사와 구현 규칙](docs/research/README.md)
 - [아키텍처와 위협 경계](docs/ARCHITECTURE.md)
+- [ADR-0001: 런타임 잠금과 CI 출처](docs/adr/0001-runtime-lock-and-ci-provenance.md)
 - [배포와 CalDAV 연결](docs/DEPLOYMENT.md)
 - [Figma 운영자 콘솔](https://www.figma.com/design/P4wdj2MnYwItYch3zdGIWt)
 - [제품 설계](docs/superpowers/specs/2026-07-19-saju-caldav-design.md)

@@ -47,6 +47,10 @@ flowchart LR
   명식, 규칙, 천간·지지, 오행 또는 `X-SAJU-*` 속성은 CalDAV로 보내지 않습니다.
 - 컨테이너는 비루트 UID, 읽기 전용 루트 파일시스템, 전체 Linux capability
   제거, `no-new-privileges`로 실행됩니다.
+- 런타임 의존성은 `pyproject.toml`에 정확한 버전을 선언하고 `uv.lock`으로
+  해석한 뒤, Docker가 사용하는 `requirements.lock`을 `uv export --frozen
+  --no-dev --no-emit-project --format requirements.txt`로 재생성합니다. 배포
+  테스트는 두 잠금 파일의 모든 런타임 버전이 일치하는지 검증합니다.
 
 ## 데이터
 

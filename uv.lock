@@ -270,7 +270,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.139.2"
+version = "0.140.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -279,9 +279,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cd/95/d3f0ae10836324a2eab98a52b61210ac609f08200bf4bb0dc8132d32f78a/fastapi-0.139.2.tar.gz", hash = "sha256:333145a6891e9b5b3cfceb69baf817e8240cde4d4588ae5a10bf56ffacb6255e", size = 423428, upload-time = "2026-07-16T15:06:17.912Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/fb/fd7671137d9fa3df1d93a2f5111eb982709201724b29f211e4beb2d58688/fastapi-0.140.0.tar.gz", hash = "sha256:f338951b82fd74ca8f843163aec43ea1a1ce84d515415a50fa98fa25572a5544", size = 420968, upload-time = "2026-07-24T21:16:41.187Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/c7/cb03251d9dfb177246a9809a76f189d21df32dbd4a845951881d11323b7f/fastapi-0.139.2-py3-none-any.whl", hash = "sha256:b9ad015a835173d59865e2f5d8296fbc2b317bf56a2ba1a5bfbdd03de2fd4b1c", size = 130234, upload-time = "2026-07-16T15:06:19.557Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/76/6d9e25ad88da9d3ff744bcdbec4736e38c2288611d43f673a5d9bfa27c07/fastapi-0.140.0-py3-none-any.whl", hash = "sha256:e951c0a0d9540bf5d9a2a9e078fd415da2ab7e312d435139e7d9e2e7fe9f0b23", size = 130863, upload-time = "2026-07-24T21:16:42.89Z" },
 ]
 
 [[package]]
@@ -536,7 +536,7 @@ wheels = [
 
 [[package]]
 name = "radicale"
-version = "3.7.6"
+version = "3.7.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
@@ -545,9 +545,9 @@ dependencies = [
     { name = "requests" },
     { name = "vobject" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/ed/2fde9d7d73b438898f644b0705edf9a89ad4fd7b3609e0fe850c35103073/radicale-3.7.6.tar.gz", hash = "sha256:366e8337588267e9b7af189f3ac527c5f9a8d7dd6d2e3e5796b49933bc72609c", size = 256326, upload-time = "2026-07-07T06:39:52.637Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/86/82dbf4d633644c74b8618a0aab7a333ca06b811797ecf7a1801ec5621d74/radicale-3.7.7.tar.gz", hash = "sha256:46c58d0340bc70a1219a46ca9c6a88b97293b555e15d41d66110c5e236243b64", size = 257422, upload-time = "2026-07-19T15:09:43.013Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/de/346091ed3ca360cf0442e8cfa1105a8f932a2b8838ae268d0964e08a93cb/radicale-3.7.6-py3-none-any.whl", hash = "sha256:0be33dedc540bf24714c83a425a36cbfa524184a075f42d0d849019f95c080fb", size = 296855, upload-time = "2026-07-07T06:39:51.049Z" },
+    { url = "https://files.pythonhosted.org/packages/20/6e/9c21ba79ecb1cc3af2e355b7f55e21c8d3f0baf3b987de3175b6c4738655/radicale-3.7.7-py3-none-any.whl", hash = "sha256:4a706462e4ef9ebd19e954e969869455040d80fd279a0863d1101e009d30c224", size = 297383, upload-time = "2026-07-19T15:09:41.064Z" },
 ]
 
 [[package]]
@@ -615,13 +615,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bcrypt", specifier = "==5.0.0" },
-    { name = "fastapi", specifier = "==0.139.2" },
+    { name = "fastapi", specifier = "==0.140.0" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "icalendar", specifier = "==7.2.2" },
     { name = "korean-lunar-calendar", specifier = "==0.4.0" },
-    { name = "radicale", specifier = "==3.7.6" },
+    { name = "radicale", specifier = "==3.7.7" },
     { name = "tzdata", specifier = "==2026.3" },
-    { name = "uvicorn", specifier = "==0.41.0" },
+    { name = "uvicorn", specifier = "==0.52.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -694,15 +694,15 @@ wheels = [
 
 [[package]]
 name = "uvicorn"
-version = "0.41.0"
+version = "0.52.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "h11" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/32/ce/eeb58ae4ac36fe09e3842eb02e0eb676bf2c53ae062b98f1b2531673efdd/uvicorn-0.41.0.tar.gz", hash = "sha256:09d11cf7008da33113824ee5a1c6422d89fbc2ff476540d69a34c87fab8b571a", size = 82633, upload-time = "2026-02-16T23:07:24.1Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/18/ccce41535dee1be77735592bd19965f3972c82e07ee703d324709496b716/uvicorn-0.52.1.tar.gz", hash = "sha256:112ec661814189acbccd3f7b86460147cc065fc92c0821afa78918780e4354dd", size = 100571, upload-time = "2026-08-01T18:19:30.732Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/e4/d04a086285c20886c0daad0e026f250869201013d18f81d9ff5eada73a88/uvicorn-0.41.0-py3-none-any.whl", hash = "sha256:29e35b1d2c36a04b9e180d4007ede3bcb32a85fbdfd6c6aeb3f26839de088187", size = 68783, upload-time = "2026-02-16T23:07:22.357Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/d5/68e6e9bca63c0badf67002890a46d3784c958de45b65e1275ec583ca1f06/uvicorn-0.52.1-py3-none-any.whl", hash = "sha256:e4403f9d93188cf9d1088e9f40e3acd12630e2df8675316704379a7fc20fff6a", size = 79859, upload-time = "2026-08-01T18:19:29.294Z" },
 ]
 
 [[package]]
