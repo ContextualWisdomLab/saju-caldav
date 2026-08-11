@@ -41,7 +41,8 @@
 
 ## 빠른 시작
 
-Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)를 사용합니다.
+Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)를 사용합니다. 릴리스 후보와
+CI는 Python 3.14에서도 검증합니다.
 
 ```bash
 uv sync --dev
@@ -93,6 +94,11 @@ uv run python scripts/acceptance_smoke.py
 - [역법 조사와 구현 규칙](docs/research/README.md)
 - [아키텍처와 위협 경계](docs/ARCHITECTURE.md)
 - [ADR-0001: 런타임 잠금과 CI 출처](docs/adr/0001-runtime-lock-and-ci-provenance.md)
+- [ADR 색인과 개인정보 삭제 결정](docs/adr/README.md)
+- [제품 요구사항](docs/product/PRD.md) · [기술 요구사항](docs/technical/TRD.md)
+- [위협 모델](docs/security/THREAT_MODEL.md) · [테스트 전략](docs/testing/TEST_STRATEGY.md)
+- [운영성과](docs/operations/OPERABILITY.md) · [요구사항 추적](docs/TRACEABILITY.md)
+- [근거·APA 7 기록](docs/doctoring/README.md)
 - [배포와 CalDAV 연결](docs/DEPLOYMENT.md)
 - [Figma 운영자 콘솔](https://www.figma.com/design/P4wdj2MnYwItYch3zdGIWt)
 - [제품 설계](docs/superpowers/specs/2026-07-19-saju-caldav-design.md)
