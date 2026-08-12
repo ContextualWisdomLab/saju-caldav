@@ -168,6 +168,16 @@ def _relationship_label(score: int) -> str:
     return "두 사람의 관계와 개인 조건을 함께 참고할 시간"
 
 
+def _pair_particle(name: str) -> str:
+    """Choose the Korean conjunction for a display name."""
+
+    last = next(reversed(name.rstrip()), " ")
+    codepoint = ord(last)
+    if 0xAC00 <= codepoint <= 0xD7A3:
+        return "과" if (codepoint - 0xAC00) % 28 else "와"
+    return "와"
+
+
 def _pair_reason(primary_name: str, secondary_name: str, relation: str) -> str | None:
     relation_labels = {
         "six_harmony": "육합 관계",
@@ -177,7 +187,7 @@ def _pair_reason(primary_name: str, secondary_name: str, relation: str) -> str |
     label = relation_labels.get(relation)
     if label is None:
         return None
-    return f"{primary_name}과 {secondary_name}의 일지가 {label}입니다."
+    return f"{primary_name}{_pair_particle(primary_name)} {secondary_name}의 일지가 {label}입니다."
 
 
 def _activation_reason(period: str, relation: str) -> str | None:
