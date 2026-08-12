@@ -342,6 +342,37 @@ def test_oidc_verifier_throttles_repeated_unknown_key_refreshes(
     assert calls == [_settings().jwks_url, _settings().jwks_url]
 
 
+def test_oidc_verifier_retries_unknown_key_after_refresh_throttle_window(
+    signing_material: tuple[rsa.RSAPrivateKey, dict[str, str]],
+) -> None:
+    private_key, jwk = signing_material
+    rotated_jwk = {**jwk, "kid": "key-2"}
+    now = [1_800_000_000.0]
+    documents = iter(({"keys": [jwk]}, {"keys": [jwk]}, {"keys": [rotated_jwk]}))
+    verifier = OidcVerifier(
+        _settings(),
+        jwks_loader=lambda _url: next(documents),
+        clock=lambda: now[0],
+    )
+    token = _token(private_key, now=now[0], kid="key-2")
+    with pytest.raises(OidcVerificationError, match="unknown signing key"):
+        verifier.verify(token)
+    now[0] += 31.0
+    assert verifier.verify(token).scope.subject == "user-1"
+
+
+def test_oidc_verifier_keeps_newer_keys_when_older_refresh_finishes(
+    signing_material: tuple[rsa.RSAPrivateKey, dict[str, str]],
+) -> None:
+    _, jwk = signing_material
+    newer_jwk = {**jwk, "kid": "key-new"}
+    verifier = _verifier(jwk, now=1_800_000_000.0, loader=lambda _url: {"keys": [jwk]})
+    verifier._jwks = {"key-new": newer_jwk}
+    verifier._jwks_loaded_at = 1_800_000_001.0
+
+    assert verifier._refresh_jwks(force=True) == {"key-new": newer_jwk}
+
+
 def test_oidc_loader_turns_network_failure_into_safe_error(monkeypatch) -> None:
     def fail(*_args, **_kwargs):
         raise OSError("network secret should not escape")
@@ -537,6 +568,11 @@ def test_authenticator_rejects_missing_hybrid_oidc_and_keeps_bearer_fail_closed(
         authenticator.authenticate("Bearer invalid", None)
     credentials = HTTPBasicCredentials(username="operator", password="password")
     assert authenticator.authenticate(None, credentials).method == "basic"
+    unicode_authenticator = Authenticator(AuthConfig("basic", "운영자", "암호"))
+    assert unicode_authenticator.authenticate(
+        None,
+        HTTPBasicCredentials(username="운영자", password="암호"),
+    ).method == "basic"
     with pytest.raises(AuthenticationError, match="operator authentication"):
         authenticator.authenticate(None, None)
     with pytest.raises(AuthenticationError, match="operator authentication"):

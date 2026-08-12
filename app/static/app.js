@@ -27,8 +27,14 @@ const visibilityLabels = {
   confidential: "제한 공개",
   public: "공개 표시",
 };
+const compatibilityMethodCopies = {
+  pair_relation_activation: "관계 작용 시간은 두 사람의 일지를 서로 비교한 뒤, 후보 날짜·시간의 지지가 두 사람을 함께 잇는 관계인지 계산합니다. 각 사람의 개인 조건 점수도 함께 표시하지만, 관계 작용 점수가 결과 순서를 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아니며 성별은 계산에 쓰지 않습니다.",
+  shared_branch_relations: "공통 조건 시간은 후보 날짜·시간의 지지를 각 사람의 일지와 따로 비교한 뒤, 두 사람 모두에게 무난한 후보를 찾습니다. 관계 작용 점수는 참고용으로 함께 표시하며, 결과 순서는 개인 조건의 균형 점수가 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아닙니다.",
+};
 
 const $ = (selector) => document.querySelector(selector);
+
+$("#compatibility-method-copy").textContent = compatibilityMethodCopies.pair_relation_activation;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -384,9 +390,7 @@ function renderCompatibility(result, primary, secondary) {
   $("#pair-result-title").textContent = relationshipMode ? "관계 작용 시간" : "공통 조건 시간";
   $("#pair-result-count").textContent = `${result.count}개의 가까운 후보를 찾았습니다.`;
   $("#pair-timezone").textContent = `첫 번째 사람의 ${primary.timezone} · ${timeBasis} 기준 · ${result.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`;
-  $("#compatibility-method-copy").textContent = relationshipMode
-    ? "관계 작용 시간은 두 사람의 일지를 서로 비교한 뒤, 후보 날짜·시간의 지지가 두 사람을 함께 잇는 관계인지 계산합니다. 각 사람의 개인 조건 점수도 함께 표시하지만, 관계 작용 점수가 결과 순서를 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아니며 성별은 계산에 쓰지 않습니다."
-    : "공통 조건 시간은 후보 날짜·시간의 지지를 각 사람의 일지와 따로 비교한 뒤, 두 사람 모두에게 무난한 후보를 찾습니다. 관계 작용 점수는 참고용으로 함께 표시하며, 결과 순서는 개인 조건의 균형 점수가 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아닙니다.";
+  $("#compatibility-method-copy").textContent = compatibilityMethodCopies[mode];
   const list = $("#compatibility-list");
   if (!result.events.length) {
     list.innerHTML = result.include_overnight

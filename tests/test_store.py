@@ -64,9 +64,13 @@ def test_store_enables_wal_and_busy_timeout(tmp_path: Path) -> None:
     with store._connect() as connection:
         journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
         busy_timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+        calendar_indexes = {
+            row[1] for row in connection.execute("PRAGMA index_list(calendars)")
+        }
 
     assert journal_mode == "wal"
     assert busy_timeout == 10_000
+    assert {"calendars_profile_id", "calendars_secondary_profile_id"} <= calendar_indexes
 
 
 def test_initialize_migrates_and_backfills_legacy_profiles(tmp_path: Path) -> None:

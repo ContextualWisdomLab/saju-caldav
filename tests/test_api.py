@@ -435,7 +435,13 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     shared_payload = shared_preview.json()
     assert shared_payload["method"] == "balanced_branch_harmony"
     assert shared_payload["interpretation"] == "shared_branch_relations"
+    assert shared_payload["count"] >= 1
+    assert shared_payload["events"]
     assert all(event["score"] == event["personal_score"] for event in shared_payload["events"])
+    assert (
+        main_module._stored_compatibility_mode({"mode": "corrupted"})
+        == "shared_branch_relations"
+    )
 
     created = client.post(
         "/api/compatibility/calendars",

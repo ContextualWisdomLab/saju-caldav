@@ -63,8 +63,15 @@ class Authenticator:
             raise AuthenticationError("OIDC bearer authentication required")
         if credentials is None or not self.config.password:
             raise AuthenticationError("operator authentication required")
-        valid = secrets.compare_digest(credentials.username, self.config.username)
-        valid = valid and secrets.compare_digest(credentials.password, self.config.password)
+        username_valid = secrets.compare_digest(
+            credentials.username.encode("utf-8"),
+            self.config.username.encode("utf-8"),
+        )
+        password_valid = secrets.compare_digest(
+            credentials.password.encode("utf-8"),
+            self.config.password.encode("utf-8"),
+        )
+        valid = username_valid and password_valid
         if not valid:
             raise AuthenticationError("operator authentication required")
         return AuthIdentity(

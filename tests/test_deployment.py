@@ -63,7 +63,7 @@ def test_keyverse_oidc_contract_is_secret_free_and_opt_in() -> None:
     assert template["clientAuthenticatorType"] == "none"
     assert template["attributes"]["pkce.code.challenge.method"] == "S256"
     assert template["fullScopeAllowed"] is False
-    assert template["defaultClientScopes"] == ["basic", "profile", "email"]
+    assert template["defaultClientScopes"] == ["basic"]
 
     def contains_secret_key(value: object) -> bool:
         if isinstance(value, dict):

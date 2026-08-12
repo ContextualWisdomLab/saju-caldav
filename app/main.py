@@ -170,7 +170,28 @@ def _compatibility_metadata(mode: str) -> tuple[str, str]:
 def _stored_compatibility_mode(settings: dict[str, object]) -> str:
     # Calendars created before the direct pair mode keep their shared semantics.
     value = settings.get("mode", settings.get("method", SHARED_RELATIONS_MODE))
-    return normalize_compatibility_mode(str(value))
+    try:
+        return normalize_compatibility_mode(str(value))
+    except ValueError:
+        return SHARED_RELATIONS_MODE
+
+
+def _stored_compatibility_request(
+    calendar: dict[str, object],
+    requested: DateRange,
+) -> CompatibilityRequest:
+    """Rebuild a stored compatibility rule for preview or synchronization."""
+
+    settings = dict(calendar["rule"])
+    return CompatibilityRequest(
+        primary_profile_id=str(calendar["profile_id"]),
+        secondary_profile_id=str(calendar["secondary_profile_id"]),
+        mode=_stored_compatibility_mode(settings),
+        start_date=requested.start_date,
+        end_date=requested.end_date,
+        limit=int(settings.get("limit", 36)),
+        include_overnight=bool(settings.get("include_overnight", False)),
+    )
 
 
 def _resolve_date_range(
@@ -355,16 +376,7 @@ def _windows(
     if stored_calendar is None:
         raise HTTPException(status_code=404, detail="calendar not found")
     if stored_calendar.get("kind") == "compatibility":
-        settings = dict(stored_calendar["rule"])
-        requested_pair = CompatibilityRequest(
-            primary_profile_id=str(stored_calendar["profile_id"]),
-            secondary_profile_id=str(stored_calendar["secondary_profile_id"]),
-            mode=_stored_compatibility_mode(settings),
-            start_date=requested.start_date,
-            end_date=requested.end_date,
-            limit=int(settings.get("limit", 36)),
-            include_overnight=bool(settings.get("include_overnight", False)),
-        )
+        requested_pair = _stored_compatibility_request(stored_calendar, requested)
         _, _, candidates = _compatibility_candidates(store, requested_pair, identity)
         return stored_calendar, [candidate.window for candidate in candidates]
 
@@ -722,16 +734,7 @@ def create_app(
         if calendar is None:
             raise HTTPException(status_code=404, detail="calendar not found")
         if calendar.get("kind") == "compatibility":
-            settings = dict(calendar["rule"])
-            compatibility_request = CompatibilityRequest(
-                primary_profile_id=str(calendar["profile_id"]),
-                secondary_profile_id=str(calendar["secondary_profile_id"]),
-                mode=_stored_compatibility_mode(settings),
-                start_date=requested.start_date,
-                end_date=requested.end_date,
-                limit=int(settings.get("limit", 36)),
-                include_overnight=bool(settings.get("include_overnight", False)),
-            )
+            compatibility_request = _stored_compatibility_request(calendar, requested)
             primary, secondary, candidates = _compatibility_candidates(
                 metadata_store,
                 compatibility_request,

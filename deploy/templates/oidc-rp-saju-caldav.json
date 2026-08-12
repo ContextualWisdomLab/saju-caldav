@@ -19,7 +19,7 @@
     "require.pushed.authorization.requests": "false"
   },
   "fullScopeAllowed": false,
-  "defaultClientScopes": ["basic", "profile", "email"],
+  "defaultClientScopes": ["basic"],
   "protocolMappers": [
     {
       "name": "keyverse-audience",

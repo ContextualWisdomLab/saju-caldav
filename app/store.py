@@ -153,6 +153,13 @@ class Store:
                 """
             )
             connection.execute(
+                "CREATE INDEX IF NOT EXISTS calendars_profile_id ON calendars(profile_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS calendars_secondary_profile_id "
+                "ON calendars(secondary_profile_id)"
+            )
+            connection.execute(
                 """
                 UPDATE profiles
                 SET birth_time = substr(birth_local, 12)
@@ -341,7 +348,24 @@ class Store:
                         scope.workspace,
                     ),
                 )
-            cursor = connection.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
+            if scope is None:
+                cursor = connection.execute(
+                    "DELETE FROM profiles WHERE id = ?", (profile_id,)
+                )
+            else:
+                cursor = connection.execute(
+                    """
+                    DELETE FROM profiles
+                    WHERE id = ? AND owner_subject = ?
+                      AND tenant_organization = ? AND tenant_workspace = ?
+                    """,
+                    (
+                        profile_id,
+                        scope.subject,
+                        scope.organization,
+                        scope.workspace,
+                    ),
+                )
         return cursor.rowcount == 1
 
     def create_calendar(

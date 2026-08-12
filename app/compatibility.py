@@ -59,6 +59,16 @@ PAIR_BASE_POINTS = {
     "neutral": 0,
     "clash": -30,
 }
+RELATION_LABELS = {
+    "six_harmony": "육합 관계",
+    "three_harmony": "삼합 계열 관계",
+    "same": "같은 지지 관계",
+}
+ACTIVATION_LABELS = {
+    "six_harmony": "두 사람의 일지를 함께 잇는 육합 관계",
+    "three_harmony": "두 사람의 일지를 함께 잇는 삼합 계열 관계",
+    "same": "두 사람의 일지와 같은 지지 관계",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,14 +152,9 @@ def _relationship_score(
 
 
 def _reason(person: str, period: str, relation: str) -> str | None:
-    relation_labels = {
-        "six_harmony": "육합 관계",
-        "three_harmony": "삼합 계열 관계",
-        "same": "같은 지지 관계",
-    }
-    if relation not in relation_labels:
+    if relation not in RELATION_LABELS:
         return None
-    return f"{period}의 지지가 {person}의 일지와 {relation_labels[relation]}입니다."
+    return f"{period}의 지지가 {person}의 일지와 {RELATION_LABELS[relation]}입니다."
 
 
 def _label(score: int) -> str:
@@ -179,24 +184,14 @@ def _pair_particle(name: str) -> str:
 
 
 def _pair_reason(primary_name: str, secondary_name: str, relation: str) -> str | None:
-    relation_labels = {
-        "six_harmony": "육합 관계",
-        "three_harmony": "삼합 계열 관계",
-        "same": "같은 지지 관계",
-    }
-    label = relation_labels.get(relation)
+    label = RELATION_LABELS.get(relation)
     if label is None:
         return None
     return f"{primary_name}{_pair_particle(primary_name)} {secondary_name}의 일지가 {label}입니다."
 
 
 def _activation_reason(period: str, relation: str) -> str | None:
-    relation_labels = {
-        "six_harmony": "두 사람의 일지를 함께 잇는 육합 관계",
-        "three_harmony": "두 사람의 일지를 함께 잇는 삼합 계열 관계",
-        "same": "두 사람의 일지와 같은 지지 관계",
-    }
-    label = relation_labels.get(relation)
+    label = ACTIVATION_LABELS.get(relation)
     if label is None:
         return None
     return f"{period}의 지지가 {label}로 작용합니다."
