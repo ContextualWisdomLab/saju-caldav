@@ -23,6 +23,13 @@ downstream 토큰 수용·거부 검증을 먼저 완료합니다. `oidc`·`hybr
 OIDC 설정이 없으면 시작하지 않습니다. 상세 계약은 [ADR-0004](adr/0004-keyverse-oidc-rp-boundary.md)를
 따릅니다.
 
+`AUTH_MODE=oidc`는 현재 검증된 Bearer 토큰을 받는 API 전용 모드입니다. 정적
+JavaScript 콘솔은 `Authorization` 헤더를 자동으로 붙이지 않으므로 브라우저에서
+`/` 운영자 화면을 직접 사용할 수 없습니다. 브라우저 authorization-code/PKCE
+로그인을 제공하는 프록시나 별도 클라이언트를 앞에 두거나, 토큰을 주입하는 API
+클라이언트를 사용하십시오. `AUTH_MODE=hybrid`는 같은 OIDC 제한을 유지하면서
+마이그레이션용 Basic도 허용합니다.
+
 ```bash
 docker compose up -d --build
 docker compose ps

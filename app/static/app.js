@@ -27,8 +27,14 @@ const visibilityLabels = {
   confidential: "제한 공개",
   public: "공개 표시",
 };
+const compatibilityMethodCopies = {
+  pair_relation_activation: "관계 작용 시간은 두 사람의 일지를 서로 비교한 뒤, 후보 날짜·시간의 지지가 두 사람을 함께 잇는 관계인지 계산합니다. 각 사람의 개인 조건 점수도 함께 표시하지만, 관계 작용 점수가 결과 순서를 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아니며 성별은 계산에 쓰지 않습니다.",
+  shared_branch_relations: "공통 조건 시간은 후보 날짜·시간의 지지를 각 사람의 일지와 따로 비교한 뒤, 두 사람 모두에게 무난한 후보를 찾습니다. 관계 작용 점수는 참고용으로 함께 표시하며, 결과 순서는 개인 조건의 균형 점수가 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아닙니다.",
+};
 
 const $ = (selector) => document.querySelector(selector);
+
+$("#compatibility-method-copy").textContent = compatibilityMethodCopies.pair_relation_activation;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -302,7 +308,7 @@ function renderCalendars() {
       const secondary = state.profiles.find((profile) => profile.id === calendar.secondary_profile_id);
       const timeBasis = primary?.time_mode === "true_solar" ? "진태양시" : "민간시";
       const rule = calendar.kind === "compatibility"
-        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}의 공통 관계 후보 · ${timeBasis} 기준 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
+        ? `${primary?.name || "첫 번째 사람"} · ${secondary?.name || "두 번째 사람"}의 ${calendar.rule.mode === "pair_relation_activation" ? "관계 작용 시간" : "공통 조건 시간"} · ${timeBasis} 기준 · ${calendar.rule.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`
         : calendar.rule.predicates.map(predicateLabel).join(calendar.rule.logic === "all" ? " 그리고 " : " 또는 ");
       const synced = calendar.last_synced_at ? new Date(calendar.last_synced_at).toLocaleString("ko-KR") : "아직 동기화하지 않음";
       return `<article class="calendar-card" data-calendar-id="${escapeHtml(calendar.id)}">
@@ -377,10 +383,14 @@ async function resolvePairProfile(form, prefix) {
 
 function renderCompatibility(result, primary, secondary) {
   state.compatibility = { result, primary, secondary };
+  const mode = result.mode || result.interpretation || "shared_branch_relations";
+  const relationshipMode = mode === "pair_relation_activation";
   const timeBasis = primary.time_mode === "true_solar" ? "진태양시" : "민간시";
   $("#pair-names").textContent = `${primary.name} · ${secondary.name}`;
+  $("#pair-result-title").textContent = relationshipMode ? "관계 작용 시간" : "공통 조건 시간";
   $("#pair-result-count").textContent = `${result.count}개의 가까운 후보를 찾았습니다.`;
   $("#pair-timezone").textContent = `첫 번째 사람의 ${primary.timezone} · ${timeBasis} 기준 · ${result.include_overnight ? "24시간 전체" : "생활 시간 09–23시"}`;
+  $("#compatibility-method-copy").textContent = compatibilityMethodCopies[mode];
   const list = $("#compatibility-list");
   if (!result.events.length) {
     list.innerHTML = result.include_overnight
@@ -406,16 +416,20 @@ function renderCompatibility(result, primary, secondary) {
       const reasons = item.reasons.slice(0, 3)
         .map((reason) => `<li>${escapeHtml(reason)}</li>`)
         .join("");
+      const scoreBreakdown = relationshipMode
+        ? `관계 작용 ${escapeHtml(item.relationship_score)} · ${escapeHtml(primary.name)} 개인 ${escapeHtml(item.primary_score)} · ${escapeHtml(secondary.name)} 개인 ${escapeHtml(item.secondary_score)}`
+        : `${escapeHtml(primary.name)} 개인 ${escapeHtml(item.primary_score)} · ${escapeHtml(secondary.name)} 개인 ${escapeHtml(item.secondary_score)} · 관계 작용 ${escapeHtml(item.relationship_score)}`;
       return `<li class="compatibility-card">
         <div class="candidate-when">
           <time datetime="${escapeHtml(item.start)}">${escapeHtml(day)}</time>
           <strong>${escapeHtml(timeRange)}</strong>
         </div>
-        <div class="score-badge" aria-label="관계 기준 점수 ${escapeHtml(item.score)}점">
-          <b>${escapeHtml(item.score)}</b><span>관계 기준 점수</span>
+        <div class="score-badge" aria-label="${relationshipMode ? "관계 작용" : "공통 조건"} 점수 ${escapeHtml(item.score)}점">
+          <b>${escapeHtml(item.score)}</b><span>${relationshipMode ? "관계 작용" : "공통 조건"}</span>
         </div>
         <div class="candidate-copy">
           <h3>${escapeHtml(item.label)}</h3>
+          <p class="score-breakdown">${scoreBreakdown}</p>
           <ul>${reasons}</ul>
           <details>
             <summary>사주 표기 보기</summary>
@@ -429,7 +443,8 @@ function renderCompatibility(result, primary, secondary) {
   const calendarForm = document.getElementById("compatibility-calendar-form");
   calendarForm.elements.namedItem("primary_profile_id").value = primary.id;
   calendarForm.elements.namedItem("secondary_profile_id").value = secondary.id;
-  calendarForm.elements.namedItem("name").value = "둘의 관계 후보 시간";
+  calendarForm.elements.namedItem("mode").value = mode;
+  calendarForm.elements.namedItem("name").value = relationshipMode ? "둘의 관계 작용 시간" : "둘의 공통 조건 시간";
   $("#compatibility-result").hidden = false;
   $("#compatibility-result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -574,8 +589,9 @@ $("#pair-form").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
-  button.textContent = "두 사람의 관계 후보를 계산하고 있습니다…";
+  button.textContent = "선택한 기준을 계산하고 있습니다…";
   try {
+    const mode = form.elements.namedItem("mode").value;
     const primary = await resolvePairProfile(form, "primary");
     const secondary = await resolvePairProfile(form, "secondary");
     if (primary.id === secondary.id) {
@@ -586,6 +602,7 @@ $("#pair-form").addEventListener("submit", async (event) => {
       body: JSON.stringify({
         primary_profile_id: primary.id,
         secondary_profile_id: secondary.id,
+        mode,
         limit: 12,
         include_overnight: form.elements.namedItem("include_overnight").value === "true",
       }),
@@ -598,12 +615,12 @@ $("#pair-form").addEventListener("submit", async (event) => {
     toggleNewPersonFields(primaryChoice);
     toggleNewPersonFields(secondaryChoice);
     renderCompatibility(result, primary, secondary);
-    notify(`${primary.name} · ${secondary.name}의 가까운 공통 관계 후보를 찾았습니다.`);
+    notify(`${primary.name} · ${secondary.name}의 선택한 기준 후보를 찾았습니다.`);
   } catch (error) {
-    notify(`공통 관계 후보를 찾지 못했습니다: ${error.message}`, true);
+    notify(`두 사람의 후보를 찾지 못했습니다: ${error.message}`, true);
   } finally {
     button.disabled = false;
-    button.textContent = "두 사람의 관계 후보 찾기";
+    button.textContent = "선택한 기준으로 시간 찾기";
   }
 });
 

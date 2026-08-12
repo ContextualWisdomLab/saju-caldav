@@ -21,16 +21,16 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div>
-          <p class="eyebrow">두 사람 → 공통 관계 후보 → CalDAV</p>
+          <p class="eyebrow">두 사람 → 관계 작용·공통 조건 → CalDAV</p>
           <h1 id="hero-title">
-            <span>둘의 관계 후보를</span>
-            <span>쉽게 찾으세요</span>
+            <span>둘의 시간을</span>
+            <span>의미 있게 찾으세요</span>
           </h1>
         </div>
         <div class="hero-copy">
           <p>
-            내 생일과 상대의 생일을 한 번에 넣으면 오늘부터 두 사람의 관계 기준을
-            함께 참고할 날짜와 시간을 찾아드립니다.
+            내 생일과 상대의 생일을 한 번에 넣으면 오늘부터 두 사람 사이의 관계
+            작용이 나타나거나 각자에게 무난한 공통 날짜와 시간을 찾아드립니다.
           </p>
           <p class="disclaimer">
             사주를 잘 몰라도 됩니다. 결과에는 점수와 선정 이유를 쉬운 한국어로
@@ -43,7 +43,7 @@
         <header class="flow-heading">
           <div>
             <p class="step">01 · 함께 보기</p>
-            <h2 id="pair-title">두 사람의 공통 관계 후보 찾기</h2>
+            <h2 id="pair-title">두 사람의 관계 작용·공통 조건 시간 찾기</h2>
             <p>
               저장된 사람을 불러오거나 두 사람의 출생 정보를 바로 입력하세요.
               나머지는 자동으로 계산합니다.
@@ -51,7 +51,7 @@
           </div>
           <ol class="flow-steps" aria-label="사용 순서">
             <li><b>1</b><span>두 사람 입력</span></li>
-            <li><b>2</b><span>관계 후보 확인</span></li>
+            <li><b>2</b><span>시간 기준 확인</span></li>
             <li><b>3</b><span>캘린더 저장</span></li>
           </ol>
         </header>
@@ -87,7 +87,7 @@
                   <span>태어난 시각을 모릅니다</span>
                 </label>
                 <p class="unknown-time-note wide" data-unknown-time-note hidden>
-                  생년월일로 일주를 계산해 공통 관계 후보는 그대로 제공합니다. 시주는 추정하지 않습니다.
+                  생년월일로 일주를 계산해 선택한 시간 기준의 후보는 제공합니다. 시주는 추정하지 않습니다.
                 </p>
                 <div class="date-fields wide" role="group" aria-label="첫 번째 사람 생년월일">
                   <label class="field">
@@ -172,7 +172,7 @@
                   <span>태어난 시각을 모릅니다</span>
                 </label>
                 <p class="unknown-time-note wide" data-unknown-time-note hidden>
-                  생년월일로 일주를 계산해 공통 관계 후보는 그대로 제공합니다. 시주는 추정하지 않습니다.
+                  생년월일로 일주를 계산해 선택한 시간 기준의 후보는 제공합니다. 시주는 추정하지 않습니다.
                 </p>
                 <div class="date-fields wide" role="group" aria-label="두 번째 사람 생년월일">
                   <label class="field">
@@ -229,7 +229,14 @@
             </fieldset>
           </div>
           <label class="field pair-time-scope">
-            <span>관계 후보 시간대</span>
+            <span>찾을 시간의 의미</span>
+            <select name="mode">
+              <option value="pair_relation_activation" selected>두 사람 사이의 관계 작용 시간</option>
+              <option value="shared_branch_relations">각자에게 무난한 공통 시간</option>
+            </select>
+          </label>
+          <label class="field pair-time-scope">
+            <span>검색 시간대</span>
             <select name="include_overnight">
               <option value="false" selected>생활 시간 · 오전 9시–오후 11시</option>
               <option value="true">24시간 전체 · 새벽 포함</option>
@@ -239,7 +246,7 @@
             출생 정보는 이 운영자 전용 서버에만 저장되며 CalDAV 일정에는 포함되지 않습니다.
           </p>
           <button class="button primary pair-submit" type="submit">
-            두 사람의 관계 후보 찾기
+            선택한 기준으로 시간 찾기
           </button>
         </form>
 
@@ -247,7 +254,7 @@
           <header class="result-heading">
             <div>
               <p class="step">02 · 추천 결과</p>
-              <h2><span id="pair-names"></span>의 공통 관계 후보</h2>
+              <h2><span id="pair-names"></span>의 <span id="pair-result-title">관계 작용 시간</span></h2>
             </div>
             <div class="result-meta">
               <p id="pair-result-count"></p>
@@ -257,22 +264,16 @@
           <ol id="compatibility-list" class="compatibility-list"></ol>
           <details class="method-note">
             <summary>이 결과를 고른 기준</summary>
-            <p>
-              이 결과는 전통적인 궁합·길일 판정이 아니라, 두 사람의 일지와 후보
-              날짜·시간 지지 사이의 육합·삼합 계열·동일·충 관계를 대칭적으로
-              정렬한 문화적 참고 목록입니다. 한쪽만 높은 후보가 앞서지 않도록
-              두 사람 중 낮은 관계 기준에 더 큰 비중을 둡니다. 성별에 따른
-              배우자성·대운 해석은 포함하지 않으며, 프로필 성별은 기록용입니다.
-              미래를 예측하거나 관계의 좋고 나쁨을 판정하지 않습니다.
-            </p>
+            <p id="compatibility-method-copy"></p>
           </details>
 
           <form id="compatibility-calendar-form" class="calendar-save-form">
             <input name="primary_profile_id" type="hidden">
             <input name="secondary_profile_id" type="hidden">
+            <input name="mode" type="hidden">
             <label class="field">
               <span>캘린더 이름</span>
-              <input name="name" value="둘의 관계 후보 시간" maxlength="100" required>
+              <input name="name" value="둘의 관계 작용 시간" maxlength="100" required>
             </label>
             <label class="field">
               <span>CalDAV 주소 이름</span>

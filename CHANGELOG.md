@@ -7,6 +7,19 @@
 
 다음 변경은 아직 릴리스되지 않았다.
 
+### Changed
+
+- 두 사람 시간 검색을 `관계 작용`과 `공통 조건` 모드로 분리하고, 개인 점수와
+  관계 작용 점수를 함께 표시
+- 기존 `balanced_branch_harmony` 캘린더는 공통 조건 모드로 보존
+
+### Added
+
+- `AUTH_MODE=basic|hybrid|oidc`와 Keyverse Bearer 검증, `sub`·조직·workspace
+  기준의 프로필·캘린더 테넌트 격리
+- 기존 SQLite 프로필에 소유 subject·조직·workspace를 안전하게 보강하는 스키마
+  마이그레이션과 OIDC 운영 전환 문서
+
 ## [0.2.0] - 2026-08-11
 
 ### Added

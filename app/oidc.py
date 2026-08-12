@@ -180,9 +180,10 @@ class OidcVerifier:
         if not keys:
             raise OidcVerificationError("JWKS contains no usable signing keys")
         with self._jwks_lock:
-            self._jwks = keys
-            self._jwks_loaded_at = now
-        return keys
+            if now >= self._jwks_loaded_at:
+                self._jwks = keys
+                self._jwks_loaded_at = now
+            return self._jwks
 
     def verify(self, token: str) -> AuthIdentity:
         """Validate signature, issuer, audience, time, and Keyverse claims."""

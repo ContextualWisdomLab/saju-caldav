@@ -173,8 +173,9 @@ def test_operator_console_and_static_assets_are_served(tmp_path: Path) -> None:
     assert client.get("/").status_code == 401
     page = client.get("/", auth=_auth())
     assert page.status_code == 200
-    assert "두 사람의 공통 관계 후보 찾기" in page.text
-    assert "두 사람의 관계 후보 찾기" in page.text
+    assert "두 사람의 관계 작용·공통 조건 시간 찾기" in page.text
+    assert "두 사람 사이의 관계 작용 시간" in page.text
+    assert "각자에게 무난한 공통 시간" in page.text
     assert "사주를 잘 몰라도 됩니다" in page.text
     assert "태어난 시각을 모릅니다" in page.text
     assert "생활 시간" in page.text
@@ -398,14 +399,17 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     )
     assert preview.status_code == 200, preview.text
     payload = preview.json()
-    assert payload["method"] == "balanced_branch_harmony"
-    assert payload["interpretation"] == "shared_branch_relations"
+    assert payload["method"] == "pair_relation_activation"
+    assert payload["interpretation"] == "pair_relation_activation"
+    assert payload["mode"] == "pair_relation_activation"
     assert payload["gender_policy"] == "record_only"
     assert payload["include_overnight"] is False
     assert payload["primary_name"] == "공개 테스트 예시"
     assert payload["secondary_name"] == "두 번째 공개 예시"
     assert 1 <= payload["count"] <= 8
     assert all(event["score"] >= 60 for event in payload["events"])
+    assert all(event["relationship_score"] == event["score"] for event in payload["events"])
+    assert all(event["personal_score"] >= 60 for event in payload["events"])
     assert all(event["label"].endswith("시간") for event in payload["events"])
     assert all(event["reasons"] for event in payload["events"])
     for event in payload["events"]:
@@ -414,6 +418,30 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
         assert start.date() == end.date()
         assert start.time() >= time(9)
         assert end.time() <= time(23)
+
+    shared_preview = client.post(
+        "/api/compatibility/preview",
+        auth=_auth(),
+        json={
+            "primary_profile_id": primary["id"],
+            "secondary_profile_id": secondary["id"],
+            "mode": "shared_branch_relations",
+            "start_date": "2000-01-01",
+            "end_date": "2000-01-31",
+            "limit": 8,
+        },
+    )
+    assert shared_preview.status_code == 200, shared_preview.text
+    shared_payload = shared_preview.json()
+    assert shared_payload["method"] == "balanced_branch_harmony"
+    assert shared_payload["interpretation"] == "shared_branch_relations"
+    assert shared_payload["count"] >= 1
+    assert shared_payload["events"]
+    assert all(event["score"] == event["personal_score"] for event in shared_payload["events"])
+    assert (
+        main_module._stored_compatibility_mode({"mode": "corrupted"})
+        == "shared_branch_relations"
+    )
 
     created = client.post(
         "/api/compatibility/calendars",
@@ -432,6 +460,7 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     calendar = created.json()
     assert calendar["kind"] == "compatibility"
     assert calendar["secondary_profile_id"] == secondary["id"]
+    assert calendar["rule"]["mode"] == "pair_relation_activation"
     assert calendar["rule"]["include_overnight"] is True
 
     calendar_preview = client.post(

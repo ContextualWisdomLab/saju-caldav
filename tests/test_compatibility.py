@@ -2,7 +2,14 @@ from datetime import date, datetime
 
 import pytest
 
-from app.compatibility import generate_compatibility_candidates, score_window
+from app.compatibility import (
+    _label,
+    _pair_reason,
+    _relationship_label,
+    generate_compatibility_candidates,
+    normalize_compatibility_mode,
+    score_window,
+)
 from app.events import MatchingWindow
 from app.saju import Chart, Pillar, calculate_chart
 
@@ -15,6 +22,35 @@ def _chart(day_branch: str) -> Chart:
         hour=Pillar("庚", "申"),
         calculation_local=datetime(2000, 1, 1, 12),
     )
+
+
+def test_mode_normalization_and_labels_cover_explicit_boundaries() -> None:
+    assert normalize_compatibility_mode(None) == "shared_branch_relations"
+    assert normalize_compatibility_mode("balanced_branch_harmony") == "shared_branch_relations"
+    assert normalize_compatibility_mode("pair_relation_activation") == "pair_relation_activation"
+    with pytest.raises(ValueError, match="지원하지 않는 두 사람 시간 기준"):
+        normalize_compatibility_mode("unknown")
+    assert _label(80).endswith("시간")
+    assert _relationship_label(60).endswith("시간")
+    assert _pair_reason("첫 사람", "둘째 사람", "neutral") is None
+
+
+@pytest.mark.parametrize(
+    ("primary_name", "expected_prefix"),
+    [
+        ("길동", "길동과 상대"),
+        ("나", "나와 상대"),
+        ("Alex", "Alex와 상대"),
+    ],
+)
+def test_pair_reason_selects_the_korean_particle(
+    primary_name: str,
+    expected_prefix: str,
+) -> None:
+    reason = _pair_reason(primary_name, "상대", "same")
+
+    assert reason is not None
+    assert reason.startswith(expected_prefix)
 
 
 def test_balanced_score_rewards_both_people_and_explains_it_in_korean() -> None:
@@ -37,14 +73,73 @@ def test_balanced_score_rewards_both_people_and_explains_it_in_korean() -> None:
         _chart("未"),
         "나",
         "상대",
+        mode="shared_branch_relations",
     )
 
     assert candidate is not None
     assert candidate.score >= 70
     assert candidate.primary_score >= 60
     assert candidate.secondary_score >= 60
+    assert candidate.personal_score == candidate.score
+    assert candidate.relationship_score >= 60
     assert any("나의 일지" in reason for reason in candidate.reasons)
     assert any("상대의 일지" in reason for reason in candidate.reasons)
+
+
+def test_pair_relation_mode_requires_one_candidate_branch_to_connect_both_people() -> None:
+    primary = _chart("亥")
+    secondary = _chart("卯")
+    individual_only = MatchingWindow(
+        start=datetime(2000, 1, 1, 9),
+        end=datetime(2000, 1, 1, 11),
+        chart=Chart(
+            year=Pillar("己", "卯"),
+            month=Pillar("丙", "子"),
+            day=Pillar("戊", "寅"),
+            hour=Pillar("己", "戌"),
+            calculation_local=datetime(2000, 1, 1, 9),
+        ),
+    )
+    pair_bridge = MatchingWindow(
+        start=datetime(2000, 1, 1, 11),
+        end=datetime(2000, 1, 1, 13),
+        chart=Chart(
+            year=Pillar("己", "卯"),
+            month=Pillar("丙", "子"),
+            day=Pillar("己", "未"),
+            hour=Pillar("己", "未"),
+            calculation_local=datetime(2000, 1, 1, 11),
+        ),
+    )
+
+    assert score_window(
+        individual_only,
+        primary,
+        secondary,
+        "첫 사람",
+        "둘째 사람",
+        mode="shared_branch_relations",
+    ) is not None
+    assert score_window(
+        individual_only,
+        primary,
+        secondary,
+        "첫 사람",
+        "둘째 사람",
+        mode="pair_relation_activation",
+    ) is None
+
+    candidate = score_window(
+        pair_bridge,
+        primary,
+        secondary,
+        "첫 사람",
+        "둘째 사람",
+        mode="pair_relation_activation",
+    )
+    assert candidate is not None
+    assert candidate.relationship_score > candidate.personal_score
+    assert any("함께 잇는 삼합" in reason for reason in candidate.reasons)
 
 
 def test_a_clash_for_either_person_is_not_recommended() -> None:
