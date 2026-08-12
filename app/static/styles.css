@@ -397,6 +397,13 @@ h2 {
   font-size: 18px;
 }
 
+.score-breakdown {
+  margin: -2px 0 8px;
+  color: var(--vermilion);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .candidate-copy ul {
   margin: 0;
   padding-left: 18px;

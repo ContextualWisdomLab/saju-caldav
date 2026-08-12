@@ -26,8 +26,11 @@ from app.auth import (
 from app.birth import BirthInput, normalize_birth
 from app.caldav import CalDavPublisher, SyncResult
 from app.compatibility import (
+    PAIR_RELATION_MODE,
+    SHARED_RELATIONS_MODE,
     CompatibilityCandidate,
     generate_compatibility_candidates,
+    normalize_compatibility_mode,
 )
 from app.events import MatchingWindow, generate_windows
 from app.identity import AuthIdentity
@@ -127,6 +130,9 @@ class CompatibilityRequest(DateRange):
 
     primary_profile_id: str = Field(min_length=1, max_length=80)
     secondary_profile_id: str = Field(min_length=1, max_length=80)
+    mode: Literal["pair_relation_activation", "shared_branch_relations"] = (
+        PAIR_RELATION_MODE
+    )
     limit: int = Field(default=12, ge=1, le=96)
     include_overnight: bool = False
 
@@ -136,6 +142,9 @@ class CompatibilityCalendarCreate(BaseModel):
 
     primary_profile_id: str = Field(min_length=1, max_length=80)
     secondary_profile_id: str = Field(min_length=1, max_length=80)
+    mode: Literal["pair_relation_activation", "shared_branch_relations"] = (
+        PAIR_RELATION_MODE
+    )
     name: str = Field(min_length=1, max_length=100)
     slug: str = Field(
         min_length=1,
@@ -149,6 +158,19 @@ class CompatibilityCalendarCreate(BaseModel):
 
 def _now(zone: ZoneInfo) -> datetime:
     return datetime.now(zone)
+
+
+def _compatibility_metadata(mode: str) -> tuple[str, str]:
+    normalized = normalize_compatibility_mode(mode)
+    if normalized == PAIR_RELATION_MODE:
+        return "pair_relation_activation", normalized
+    return "balanced_branch_harmony", SHARED_RELATIONS_MODE
+
+
+def _stored_compatibility_mode(settings: dict[str, object]) -> str:
+    # Calendars created before the direct pair mode keep their shared semantics.
+    value = settings.get("mode", settings.get("method", SHARED_RELATIONS_MODE))
+    return normalize_compatibility_mode(str(value))
 
 
 def _resolve_date_range(
@@ -287,6 +309,7 @@ def _compatibility_candidates(
             requested.limit,
             current if requested.start_date is None else None,
             requested.include_overnight,
+            requested.mode,
         )
     except ZoneInfoNotFoundError as error:
         raise HTTPException(
@@ -306,6 +329,8 @@ def _candidate_json(candidate: CompatibilityCandidate) -> dict[str, object]:
         "score": candidate.score,
         "primary_score": candidate.primary_score,
         "secondary_score": candidate.secondary_score,
+        "personal_score": candidate.personal_score,
+        "relationship_score": candidate.relationship_score,
         "label": candidate.label,
         "reasons": list(candidate.reasons),
         "day_pillar": window.chart.day.ganzhi,
@@ -334,6 +359,7 @@ def _windows(
         requested_pair = CompatibilityRequest(
             primary_profile_id=str(stored_calendar["profile_id"]),
             secondary_profile_id=str(stored_calendar["secondary_profile_id"]),
+            mode=_stored_compatibility_mode(settings),
             start_date=requested.start_date,
             end_date=requested.end_date,
             limit=int(settings.get("limit", 36)),
@@ -700,6 +726,7 @@ def create_app(
             compatibility_request = CompatibilityRequest(
                 primary_profile_id=str(calendar["profile_id"]),
                 secondary_profile_id=str(calendar["secondary_profile_id"]),
+                mode=_stored_compatibility_mode(settings),
                 start_date=requested.start_date,
                 end_date=requested.end_date,
                 limit=int(settings.get("limit", 36)),
@@ -710,13 +737,15 @@ def create_app(
                 compatibility_request,
                 route_identity,
             )
+            method, interpretation = _compatibility_metadata(compatibility_request.mode)
             return {
                 "count": len(candidates),
                 "primary_name": primary["name"],
                 "secondary_name": secondary["name"],
-                "method": "balanced_branch_harmony",
-                "interpretation": "shared_branch_relations",
+                "method": method,
+                "interpretation": interpretation,
                 "gender_policy": "record_only",
+                "mode": interpretation,
                 "include_overnight": compatibility_request.include_overnight,
                 "events": [_candidate_json(candidate) for candidate in candidates],
             }
@@ -748,13 +777,15 @@ def create_app(
             requested,
             scoped_identity(identity),
         )
+        method, interpretation = _compatibility_metadata(requested.mode)
         return {
             "count": len(candidates),
             "primary_name": primary["name"],
             "secondary_name": secondary["name"],
-            "method": "balanced_branch_harmony",
-            "interpretation": "shared_branch_relations",
+            "method": method,
+            "interpretation": interpretation,
             "gender_policy": "record_only",
+            "mode": interpretation,
             "include_overnight": requested.include_overnight,
             "events": [_candidate_json(candidate) for candidate in candidates],
         }
@@ -786,7 +817,8 @@ def create_app(
                 visibility=requested.visibility,
                 kind="compatibility",
                 rule={
-                    "mode": "balanced_branch_harmony",
+                    "mode": requested.mode,
+                    "method": _compatibility_metadata(requested.mode)[0],
                     "limit": requested.limit,
                     "include_overnight": requested.include_overnight,
                 },
