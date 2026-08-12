@@ -3,6 +3,9 @@ from datetime import date, datetime
 import pytest
 
 from app.compatibility import (
+    ELEMENT_CONTROLS,
+    ELEMENT_GENERATES,
+    STEM_COMBINATIONS,
     _element_flow,
     _label,
     _pair_reason,
@@ -38,10 +41,20 @@ def test_mode_normalization_and_labels_cover_explicit_boundaries() -> None:
 
 
 def test_indicator_helpers_describe_relations_without_turning_them_into_scores() -> None:
-    assert _stem_relation("甲", "己") == "stem_harmony"
+    for combination in STEM_COMBINATIONS:
+        left, right = tuple(combination)
+        assert _stem_relation(left, right) == "stem_harmony"
+        assert _stem_relation(right, left) == "stem_harmony"
+
     assert _stem_relation("甲", "乙") == "same_element"
-    assert _element_flow("木", "火") == "생"
-    assert _element_flow("火", "木") == "생을 받음"
+
+    for source, target in ELEMENT_GENERATES.items():
+        assert _element_flow(source, target) == "생"
+        assert _element_flow(target, source) == "생을 받음"
+
+    for source, target in ELEMENT_CONTROLS.items():
+        assert _element_flow(source, target) == "극"
+        assert _element_flow(target, source) == "극을 받음"
 
 
 @pytest.mark.parametrize(
@@ -154,6 +167,7 @@ def test_pair_relation_mode_requires_one_candidate_branch_to_connect_both_people
     assert indicators["날짜 오행 흐름"] == "첫 사람 같은 오행 · 둘째 사람 같은 오행"
     assert indicators["시간 지지"]
     assert dict(candidate.metrics)["관계 연결"] == "4/4"
+    assert dict(candidate.metrics)["충 관계"] == "0/4"
 
 
 def test_a_clash_for_either_person_is_not_recommended() -> None:
