@@ -35,6 +35,24 @@ def test_mode_normalization_and_labels_cover_explicit_boundaries() -> None:
     assert _pair_reason("첫 사람", "둘째 사람", "neutral") is None
 
 
+@pytest.mark.parametrize(
+    ("primary_name", "expected_prefix"),
+    [
+        ("길동", "길동과 상대"),
+        ("나", "나와 상대"),
+        ("Alex", "Alex와 상대"),
+    ],
+)
+def test_pair_reason_selects_the_korean_particle(
+    primary_name: str,
+    expected_prefix: str,
+) -> None:
+    reason = _pair_reason(primary_name, "상대", "same")
+
+    assert reason is not None
+    assert reason.startswith(expected_prefix)
+
+
 def test_balanced_score_rewards_both_people_and_explains_it_in_korean() -> None:
     current = Chart(
         year=Pillar("己", "卯"),
