@@ -28,8 +28,8 @@ const visibilityLabels = {
   public: "공개 표시",
 };
 const compatibilityMethodCopies = {
-  pair_relation_activation: "관계 작용 시간은 두 사람의 일지를 서로 비교한 뒤, 후보 날짜·시간의 지지가 두 사람을 함께 잇는 관계인지 계산합니다. 각 사람의 개인 조건 점수도 함께 표시하지만, 관계 작용 점수가 결과 순서를 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아니며 성별은 계산에 쓰지 않습니다.",
-  shared_branch_relations: "공통 조건 시간은 후보 날짜·시간의 지지를 각 사람의 일지와 따로 비교한 뒤, 두 사람 모두에게 무난한 후보를 찾습니다. 관계 작용 점수는 참고용으로 함께 표시하며, 결과 순서는 개인 조건의 균형 점수가 정합니다. 전통적인 궁합·길일 판정이나 미래 예측이 아닙니다.",
+  pair_relation_activation: "관계 작용 시간은 두 사람의 일지를 서로 비교한 뒤, 후보 날짜·시간의 지지가 두 사람을 함께 잇는 관계인지 계산합니다. 각 사람의 개인 조건 점수도 함께 표시하지만, 관계 작용 점수가 결과 순서를 정합니다. 아래 지표는 천간·지지·오행 흐름을 설명하며 별도 예측 점수로 더하지 않습니다. 전통적인 궁합·길일 판정이나 미래 예측이 아니며 성별은 계산에 쓰지 않습니다.",
+  shared_branch_relations: "공통 조건 시간은 후보 날짜·시간의 지지를 각 사람의 일지와 따로 비교한 뒤, 두 사람 모두에게 무난한 후보를 찾습니다. 관계 작용 점수는 참고용으로 함께 표시하며, 결과 순서는 개인 조건의 균형 점수가 정합니다. 아래 지표는 천간·지지·오행 흐름을 설명하며 별도 예측 점수로 더하지 않습니다. 전통적인 궁합·길일 판정이나 미래 예측이 아닙니다.",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -416,6 +416,12 @@ function renderCompatibility(result, primary, secondary) {
       const reasons = item.reasons.slice(0, 3)
         .map((reason) => `<li>${escapeHtml(reason)}</li>`)
         .join("");
+      const indicators = (item.indicators || [])
+        .map(({ label, value }) => `<li><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></li>`)
+        .join("");
+      const metrics = (item.metrics || [])
+        .map(({ label, value }) => `<li><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></li>`)
+        .join("");
       const scoreBreakdown = relationshipMode
         ? `관계 작용 ${escapeHtml(item.relationship_score)} · ${escapeHtml(primary.name)} 개인 ${escapeHtml(item.primary_score)} · ${escapeHtml(secondary.name)} 개인 ${escapeHtml(item.secondary_score)}`
         : `${escapeHtml(primary.name)} 개인 ${escapeHtml(item.primary_score)} · ${escapeHtml(secondary.name)} 개인 ${escapeHtml(item.secondary_score)} · 관계 작용 ${escapeHtml(item.relationship_score)}`;
@@ -430,7 +436,9 @@ function renderCompatibility(result, primary, secondary) {
         <div class="candidate-copy">
           <h3>${escapeHtml(item.label)}</h3>
           <p class="score-breakdown">${scoreBreakdown}</p>
-          <ul>${reasons}</ul>
+          <ul class="candidate-reasons">${reasons}</ul>
+          <ul class="candidate-metrics" aria-label="수치 지표">${metrics}</ul>
+          <ul class="candidate-indicators" aria-label="산출 지표">${indicators}</ul>
           <details>
             <summary>사주 표기 보기</summary>
             <span>일지 ${escapeHtml(item.day_branch_korean)} · 시간 ${escapeHtml(item.hour_branch_korean)}</span>

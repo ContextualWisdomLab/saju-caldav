@@ -412,6 +412,16 @@ def test_two_person_preview_calendar_and_sync_are_plain_korean(
     assert all(event["personal_score"] >= 60 for event in payload["events"])
     assert all(event["label"].endswith("시간") for event in payload["events"])
     assert all(event["reasons"] for event in payload["events"])
+    assert all(event["indicators"] for event in payload["events"])
+    assert all(
+        {"label", "value"} <= set(event["indicators"][0])
+        for event in payload["events"]
+    )
+    assert all(event["metrics"] for event in payload["events"])
+    assert all(
+        {"label", "value"} <= set(event["metrics"][0])
+        for event in payload["events"]
+    )
     for event in payload["events"]:
         start = datetime.fromisoformat(event["start"])
         end = datetime.fromisoformat(event["end"])

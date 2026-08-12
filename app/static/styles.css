@@ -404,11 +404,55 @@ h2 {
   line-height: 1.5;
 }
 
-.candidate-copy ul {
+.candidate-reasons {
   margin: 0;
   padding-left: 18px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.candidate-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px dashed var(--hairline);
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.candidate-metrics li {
+  display: flex;
+  gap: 4px;
+}
+
+.candidate-metrics b {
+  color: var(--vermilion);
+  font-weight: 700;
+}
+
+.candidate-indicators {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.candidate-indicators li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.candidate-indicators b {
+  color: var(--ink);
+  font-weight: 600;
+  text-align: right;
 }
 
 .candidate-copy details,

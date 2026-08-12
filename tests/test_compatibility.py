@@ -3,9 +3,11 @@ from datetime import date, datetime
 import pytest
 
 from app.compatibility import (
+    _element_flow,
     _label,
     _pair_reason,
     _relationship_label,
+    _stem_relation,
     generate_compatibility_candidates,
     normalize_compatibility_mode,
     score_window,
@@ -33,6 +35,13 @@ def test_mode_normalization_and_labels_cover_explicit_boundaries() -> None:
     assert _label(80).endswith("시간")
     assert _relationship_label(60).endswith("시간")
     assert _pair_reason("첫 사람", "둘째 사람", "neutral") is None
+
+
+def test_indicator_helpers_describe_relations_without_turning_them_into_scores() -> None:
+    assert _stem_relation("甲", "己") == "stem_harmony"
+    assert _stem_relation("甲", "乙") == "same_element"
+    assert _element_flow("木", "火") == "생"
+    assert _element_flow("火", "木") == "생을 받음"
 
 
 @pytest.mark.parametrize(
@@ -140,6 +149,11 @@ def test_pair_relation_mode_requires_one_candidate_branch_to_connect_both_people
     assert candidate is not None
     assert candidate.relationship_score > candidate.personal_score
     assert any("함께 잇는 삼합" in reason for reason in candidate.reasons)
+    indicators = dict(candidate.indicators)
+    assert indicators["두 사람 일간"] == "같은 천간"
+    assert indicators["날짜 오행 흐름"] == "첫 사람 같은 오행 · 둘째 사람 같은 오행"
+    assert indicators["시간 지지"]
+    assert dict(candidate.metrics)["관계 연결"] == "4/4"
 
 
 def test_a_clash_for_either_person_is_not_recommended() -> None:
