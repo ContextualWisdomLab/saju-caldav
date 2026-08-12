@@ -295,7 +295,7 @@ def _metrics(
     controlling = sum(flow in {"controls", "controlled"} for flow in flows)
     return (
         ("관계 연결", f"{sum(relation in POSITIVE_RELATIONS for relation in relations)}/4"),
-        ("충 관계", f"{sum(relation == \"clash\" for relation in relations)}/4"),
+        ("충 관계", f"{sum(relation == 'clash' for relation in relations)}/4"),
         ("생·같음 흐름", f"{supportive}/4"),
         ("극 흐름", f"{controlling}/4"),
     )
