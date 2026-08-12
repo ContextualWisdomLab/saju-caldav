@@ -58,6 +58,9 @@ flowchart LR
   사람이 선택한 `civil` 민간시 또는 `true_solar` 진태양시 기준 09:00–23:00에서
   날짜마다 가장 높은 현재 이후 시간 하나를 남기며, 사용자가 선택하면 24시간
   전체를 검색합니다. 점수는 문화적 정렬 규칙이지 예측 모델의 확률이 아닙니다.
+- 후보 API는 순위 점수와 별도로 `indicators`(일지·일간·지지·오행 설명)와
+  `metrics`(긍정 연결·충·생극 흐름 개수)를 반환합니다. 두 필드는 설명 가능성을
+  위한 관찰값이며 점수에 중복 가산하지 않습니다.
 - iCalendar 이벤트는 사용자가 선택한 `CLASS:PRIVATE`, `CLASS:CONFIDENTIAL`,
   `CLASS:PUBLIC` 중 하나와 `TRANSP:TRANSPARENT`로 생성됩니다. 이 분류는 캘린더
   클라이언트 표시용이며 Radicale의 인증·`owner_only` 접근 제어를 바꾸지 않습니다.

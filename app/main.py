@@ -358,6 +358,14 @@ def _candidate_json(candidate: CompatibilityCandidate) -> dict[str, object]:
         "hour_pillar": window.chart.hour.ganzhi,
         "day_branch_korean": window.chart.day.branch_korean,
         "hour_branch_korean": window.chart.hour.branch_korean,
+        "indicators": [
+            {"label": label, "value": value}
+            for label, value in candidate.indicators
+        ],
+        "metrics": [
+            {"label": label, "value": value}
+            for label, value in candidate.metrics
+        ],
     }
 
 
