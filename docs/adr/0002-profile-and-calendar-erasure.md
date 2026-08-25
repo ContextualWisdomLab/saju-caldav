@@ -43,3 +43,13 @@ CalDAV 컬렉션은 RFC 4791의 WebDAV 리소스이며 삭제는 서버 컬렉�
 - publisher 미설정 시 502와 로컬 보존 테스트
 - 404 멱등 응답과 race 후 404 테스트
 - 운영자 콘솔 정적 자산·한글 삭제 문구 테스트
+
+## 참고문헌
+
+Daboo, C., Desruisseaux, B., & Dusseault, L. (2007). *Calendaring extensions to
+WebDAV (CalDAV)* (RFC 4791). RFC Editor. https://doi.org/10.17487/RFC4791
+https://www.rfc-editor.org/rfc/rfc4791
+
+Dusseault, L. (Ed.). (2007). *HTTP extensions for web distributed authoring and
+versioning (WebDAV)* (RFC 4918). RFC Editor. https://doi.org/10.17487/RFC4918
+https://www.rfc-editor.org/rfc/rfc4918
