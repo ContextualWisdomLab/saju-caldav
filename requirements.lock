@@ -23,7 +23,7 @@ bcrypt==5.0.0 \
     --hash=sha256:212139484ab3207b1f0c00633d3be92fef3c5f0af17cad155679d03ff2ee1e41 \
     --hash=sha256:2b732e7d388fa22d48920baa267ba5d97cca38070b69c0e2d37087b381c681fd \
     --hash=sha256:35a77ec55b541e5e583eb3436ffbbf53b0ffa1fa16ca6782279daf95d146dcd9 \
-    --hash=sha256:38cac74101777a6a7d3b3e3cfefa57089b5ada650dce2baf0cbdd9d65db22a9e \
+    --hash=sha256:38cac74101777a6d3b3e3cfefa57089b5ada650dce2baf0cbdd9d65db22a9e \
     --hash=sha256:3abeb543874b2c0524ff40c57a4e14e5d3a66ff33fb423529c88f180fd756538 \
     --hash=sha256:3ca8a166b1140436e058298a34d88032ab62f15aae1c598580333dc21d27ef10 \
     --hash=sha256:3cf67a804fc66fc217e6914a5635000259fbbbb12e78a99488e4d5ba445a71eb \
@@ -205,7 +205,7 @@ charset-normalizer==3.4.9 \
     --hash=sha256:c25fe15c70c59eb7c5ce8c06a1f3fa1da0ecc5ea1e7a5922c40fd2fa9b0d5046 \
     --hash=sha256:cc1b0fff8ead343dae06305f954eb8468ba0ec1a97881f42489d198e4ce3c632 \
     --hash=sha256:cd6c3d4b783c556fa00bf540854e42f135e2f256abd29669fcd0da0f2dec79c2 \
-    --hash=sha256:d4d6fcde76f94f5cb9e43e9e9a61f16dacefd228cbbf6f1a09bd9b219a92f1a1 \
+    --hash=sha256:d4d6fcde76f94f5cb9e43e9e9a61f16dacefd228cbb6f1a09bd9b219a92f1a1 \
     --hash=sha256:df115d4d83168fdf2cae48ef1ff6d1cb4c466364e30861b37121de0f3bf1b990 \
     --hash=sha256:e4fd89cc178bced6ad29cb3e6dd4aa63fa5017c3524dbd0b25998fb64a87cc8b \
     --hash=sha256:ee2f2a527e3c1a6e6411eb4209642e138b544a2d72fe5d0d76daf77b24063534 \
@@ -221,7 +221,7 @@ click==8.4.2 \
     # via uvicorn
 colorama==0.4.6 ; sys_platform == 'win32' \
     --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 \
-    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77d6b33703e51011c16baf57afb285fc6
     # via click
 cryptography==50.0.0 \
     --hash=sha256:031e2d5dd4bb9caa3ca9c82e5a197fd8ae680232cee62603d1a813f3f07e3d03 \
@@ -399,9 +399,9 @@ pytz==2026.2 \
     --hash=sha256:04156e608bee23d3792fd45c94ae47fae1036688e75032eea2e3bf0323d1f126 \
     --hash=sha256:0e60b47b29f21574376f218fe21abc009894a2321ea16c6754f3cad6eb7cdd6a
     # via vobject
-radicale==3.7.7 \
-    --hash=sha256:46c58d0340bc70a1219a46ca9c6a88b97293b555e15d41d66110c5e236243b64 \
-    --hash=sha256:4a706462e4ef9ebd19e954e969869455040d80fd279a0863d1101e009d30c224
+radicale==3.7.8 \
+    --hash=sha256:8b7345606bf13ded08dc81d4fddefbbe3461baa11b2fe77caba355a0978f8e9c \
+    --hash=sha256:15244b4c172ae12dbf9f140bcbbecb99fb8c27238d344f86ed4db9dec8034384
     # via saju-caldav
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
