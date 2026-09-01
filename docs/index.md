@@ -7,20 +7,20 @@
 ## 시작하기
 
 - [저장소 README](https://github.com/ContextualWisdomLab/saju-caldav#readme) — 기능, 빠른 시작, 로컬 및 Docker 실행 방법.
-- [배포 가이드](DEPLOYMENT.md) — 운영 배포와 CalDAV 연결 절차.
-- [제품 요구사항](product/PRD.md) — 사용자 가치, 범위, 제품 수용 기준.
-- [기술 요구사항](technical/TRD.md) — 런타임, 데이터, 연동 및 품질 계약.
-- [아키텍처와 위협 경계](ARCHITECTURE.md) — 서비스 경계와 주요 기술 결정.
-- [ADR 색인](adr/README.md) — 수용된 아키텍처 결정과 근거.
-- [위협 모델](security/THREAT_MODEL.md) — 인증, 데이터, 네트워크 보안 경계.
-- [Keyverse OIDC 연동](security/KEYVERSE.md) — OIDC issuer, audience, JWKS 및 이행 경계.
-- [역법 조사와 구현 규칙](research/README.md) — RFC와 역법 근거, 구현 규칙.
-- [운영성과](operations/OPERABILITY.md) — 운영 및 복구 계약.
-- [요구사항 추적](TRACEABILITY.md) — 제품·기술 요구사항과 검증 증거 연결.
+- [배포 가이드](DEPLOYMENT.html) — 운영 배포와 CalDAV 연결 절차.
+- [제품 요구사항](product/PRD.html) — 사용자 가치, 범위, 제품 수용 기준.
+- [기술 요구사항](technical/TRD.html) — 런타임, 데이터, 연동 및 품질 계약.
+- [아키텍처와 위협 경계](ARCHITECTURE.html) — 서비스 경계와 주요 기술 결정.
+- [ADR 색인](adr/README.html) — 수용된 아키텍처 결정과 근거.
+- [위협 모델](security/THREAT_MODEL.html) — 인증, 데이터, 네트워크 보안 경계.
+- [Keyverse OIDC 연동](security/KEYVERSE.html) — OIDC issuer, audience, JWKS 및 이행 경계.
+- [역법 조사와 구현 규칙](research/README.html) — RFC와 역법 근거, 구현 규칙.
+- [운영성과](operations/OPERABILITY.html) — 운영 및 복구 계약.
+- [요구사항 추적](TRACEABILITY.html) — 제품·기술 요구사항과 검증 증거 연결.
 
 ## 제품과 아키텍처
 
-서비스는 출생 프로필, 관계 작용 또는 공통 조건 탐색, RFC 5545 iCalendar 이벤트 생성, RFC 4791 CalDAV 발행을 하나의 운영 경계 안에서 제공합니다. 운영자 웹 콘솔은 HTTP Basic 또는 검증된 Keyverse OIDC bearer를 사용할 수 있으며, OIDC 모드에서는 검증 실패를 Basic으로 우회하지 않습니다. 프로필과 캘린더 상태는 검증된 사용자·조직·workspace 경계를 따라 격리됩니다.
+서비스는 출생 프로필, 관계 작용 또는 공통 조건 탐색, RFC 5545 iCalendar 이벤트 생성, RFC 4791 CalDAV 발행을 하나의 운영 경계 안에서 제공합니다. 운영자 웹 콘솔은 HTTP Basic 또는 검증된 Keyverse OIDC bearer를 사용할 수 있으며, OIDC 모드에서는 검증 실패를 Basic으로 우회하지 않습니다. 사용자·조직·workspace 격리는 웹/API 계층과 SQLite 메타데이터에 적용됩니다. 직접 CalDAV 연결은 단일 `CALDAV_USERNAME`과 `owner_only` 저장소를 사용하므로 subject별 격리를 제공하지 않습니다.
 
 출생 정보는 민감한 개인정보로 취급합니다. 실제 데이터베이스, 비밀 환경 변수, CalDAV 컬렉션, 운영 로그와 실제 회귀 입력은 공개 저장소나 공개 CI에 포함하지 않습니다. 공개 테스트는 서비스와 무관한 합성 데이터만 사용합니다.
 
