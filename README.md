@@ -1,5 +1,7 @@
 # 사주 캘린더 · CalDAV
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/saju-caldav)
+
 양력 또는 한국 음력 출생 시각에서 사주 네 기둥을 계산하고, 두 사람의 관계 작용
 또는 각자에게 무난한 공통 조건을 함께 참고할 현재 이후의 실제 날짜·시각이나
 사용자가 만든 조건의 일치 시간을 개인 CalDAV 캘린더로 발행하는 단일 운영자용
