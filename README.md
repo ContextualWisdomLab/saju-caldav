@@ -19,7 +19,7 @@
 
 ## 빠른 시작
 
-Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)가 필요합니다. CI와 릴리스 검증은 Python 3.14도 포함합니다.
+Python 3.12 이상과 [uv](https://docs.astral.sh/uv/)가 필요합니다. 정확한 검증 범위는 현재 저장소 CI와 릴리스 증거를 기준으로 판단합니다.
 
 ```bash
 uv sync --dev
