@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Radicale is GPLv3 and is pending removal/replacement under issue #45.
+      # Do not spend review/CI capacity upgrading an inbound dependency that
+      # violates the repository's commercial-license policy.
+      - dependency-name: radicale
   - package-ecosystem: github-actions
     directory: /
     schedule:
