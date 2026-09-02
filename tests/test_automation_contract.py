@@ -18,6 +18,11 @@ def test_hourly_workflow_is_scheduled_and_read_only() -> None:
     assert "persist-credentials: false" in workflow
     assert "COPILOT_GITHUB_TOKEN" not in workflow
     assert "NVIDIA_NIM_API_KEY" in workflow
+    assert "--output-format text" in workflow
+    assert "repository_owner=" in workflow
+    assert "repository_name=" in workflow
+    assert '\n          owner="' not in workflow
+    assert '\n          repo="' not in workflow
     for token in (
         "headRefOid",
         "statusCheckRollup",
@@ -35,6 +40,10 @@ def test_hourly_sentinel_has_no_personal_data_contract() -> None:
     assert "capture_output=True" in script
     assert "ensure_ascii=False" in script
     assert "birth" not in script.lower()
+    assert '"--repository-root"' in script
+    assert '"--output-format"' in script
+    assert '"--root"' not in script
+    assert '"--format"' not in script
 
 
 def test_hourly_sentinel_uses_semantic_owned_identifiers() -> None:
@@ -72,7 +81,12 @@ def test_hourly_sentinel_redacts_failed_output_and_times_out(monkeypatch, capsys
     assert check_result.check_detail == "command failed (exit 1)"
     assert secret not in check_result.check_detail
 
-    assert hourly_loop.main(["--root", str(ROOT), "--format", "json"]) == 1
+    assert (
+        hourly_loop.main(
+            ["--repository-root", str(ROOT), "--output-format", "json"]
+        )
+        == 1
+    )
     sentinel_payload = json.loads(capsys.readouterr().out)
     assert set(sentinel_payload) == {"sentinel_status", "check_results"}
     assert all(
