@@ -13,6 +13,10 @@
   관계 작용 점수를 함께 표시
 - 후보 카드에 일지·일간·지지·오행 흐름 설명과 긍정 연결·충·생극 흐름 지표를 추가
 - 기존 `balanced_branch_harmony` 캘린더는 공통 조건 모드로 보존
+- 시간별 quality sentinel의 조직 소유 Python/JSON/CLI/workflow 식별자를
+  `_run_sentinel_command`, `run_quality_sentinel`, `check_name`, `check_status`,
+  `check_detail`, `elapsed_seconds`, `sentinel_status`, `check_results`,
+  `--repository-root`, `--output-format`, `repository_owner`, `repository_name`으로 명확화
 
 ### Added
 
