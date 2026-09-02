@@ -35,6 +35,22 @@ flowchart TD
 - 키·provider가 없을 때도 sentinel 결과와 건너뛴 이유를 보존한다. 실패를 녹색으로
   위장하지 않는다.
 
+## Sentinel naming contract
+
+운영자가 직접 실행할 때는 `uv run python scripts/hourly_product_loop.py
+--output-format text`를 사용한다. 다른 checkout을 검사할 때만
+`--repository-root <path>`를 추가한다. 조직이 소유하는 Python/JSON 계약은
+`run_quality_sentinel`, `_run_sentinel_command`, `check_name`, `check_status`,
+`check_detail`, `elapsed_seconds`, `sentinel_status`, `check_results`를 canonical
+용어로 사용한다. 이전 generic `_run`, `run`, `name`, `status`, `detail`, `seconds`,
+`--root`, `--format`, JSON `status`/`checks`는 이 repository의 외부 표준이나 vendor
+계약이 아니며 canonical 계약으로 유지하지 않는다.
+
+GitHub GraphQL query의 `owner`, `name`, `status`처럼 GitHub가 정의한 field 이름과
+Python `subprocess.run` keyword는 외부 contract이므로 그대로 둔다. workflow 내부
+shell 변수는 `repository_owner`, `repository_name`처럼 bounded meaning으로 번역해
+사용한다.
+
 ## 성공 증적
 
 workflow summary에는 검사 결과, 현재 PR의 SHA prefix·상태 요약, 다음 수동 단계만
