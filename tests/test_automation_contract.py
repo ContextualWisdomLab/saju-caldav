@@ -48,6 +48,8 @@ def test_hourly_sentinel_uses_semantic_owned_identifiers() -> None:
     )
     assert hasattr(hourly_loop, "_run_sentinel_command")
     assert not hasattr(hourly_loop, "_run")
+    assert hasattr(hourly_loop, "run_quality_sentinel")
+    assert not hasattr(hourly_loop, "run")
 
 
 def test_hourly_sentinel_redacts_failed_output_and_times_out(monkeypatch, capsys) -> None:
