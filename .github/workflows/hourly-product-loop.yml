@@ -6,7 +6,7 @@ on:
     - cron: "17 * * * *"
 
 concurrency:
-  group: hourly-product-loop-${{ github.repository }}
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.run_id }}
   cancel-in-progress: false
 
 permissions:
