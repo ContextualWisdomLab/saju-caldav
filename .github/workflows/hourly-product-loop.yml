@@ -38,7 +38,7 @@ jobs:
       - name: Install locked development environment
         run: uv sync --locked --dev
       - name: Run deterministic quality sentinel
-        run: uv run python scripts/hourly_product_loop.py --format text
+        run: uv run python scripts/hourly_product_loop.py --output-format text
 
   nim-proposal-gate:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          owner="${GITHUB_REPOSITORY%/*}"
-          repo="${GITHUB_REPOSITORY#*/}"
+          repository_owner="${GITHUB_REPOSITORY%/*}"
+          repository_name="${GITHUB_REPOSITORY#*/}"
           open_prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 2 --json number,headRefOid)"
           open_count="$(jq 'length' <<<"$open_prs")"
           if [ "$open_count" -gt 1 ]; then
@@ -77,13 +77,13 @@ jobs:
             thread_query="query(\$owner: String!, \$repo: String!, \$number: Int!) { repository(owner: \$owner, name: \$repo) { pullRequest(number: \$number) { reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved isOutdated } } } } }"
             unresolved_threads="$(gh api graphql \
               -f query="$thread_query" \
-              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              -F owner="$repository_owner" -F repo="$repository_name" -F number="$pr_number" \
               | jq -r '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false and .isOutdated == false)] | length')"
             thread_page_truncated="$(gh api graphql \
               -f query="$thread_query" \
-              -F owner="$owner" -F repo="$repo" -F number="$pr_number" \
+              -F owner="$repository_owner" -F repo="$repository_name" -F number="$pr_number" \
               | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
-            ruleset_count="$(gh api "repos/$owner/$repo/rulesets?includes_parents=true" | jq 'length')"
+            ruleset_count="$(gh api "repos/$repository_owner/$repository_name/rulesets?includes_parents=true" | jq 'length')"
             cat >>"$GITHUB_STEP_SUMMARY" <<SUMMARY
           NIM proposal paused: an open PR owns the review lane after current-head validation.
           - PR: #$pr_number
