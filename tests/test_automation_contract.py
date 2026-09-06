@@ -87,22 +87,27 @@ def test_hourly_sentinel_redacts_failed_output_and_times_out(monkeypatch, capsys
         )
 
     monkeypatch.setattr(hourly_loop.subprocess, "run", failed_run)
-    result = hourly_loop._run(ROOT, "contract", ["uv", "lock", "--check"])
-    assert result.status == "fail"
-    assert result.detail == "command failed (exit 1)"
-    assert secret not in result.detail
+    check_result = hourly_loop._run_sentinel_command(
+        ROOT, "contract", ["uv", "lock", "--check"]
+    )
+    assert check_result.check_status == "fail"
+    assert check_result.check_detail == "command failed (exit 1)"
+    assert secret not in check_result.check_detail
 
     assert hourly_loop.main(["--root", str(ROOT), "--format", "json"]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert secret not in json.dumps(payload, ensure_ascii=False)
+    assert set(payload["checks"][0]) == {"name", "status", "detail", "seconds"}
 
     def timed_out_run(*args, **kwargs):
         raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
 
     monkeypatch.setattr(hourly_loop.subprocess, "run", timed_out_run)
-    timeout_result = hourly_loop._run(ROOT, "timeout", ["uv", "lock", "--check"])
-    assert timeout_result.status == "fail"
-    assert timeout_result.detail == "command timed out"
+    timeout_result = hourly_loop._run_sentinel_command(
+        ROOT, "timeout", ["uv", "lock", "--check"]
+    )
+    assert timeout_result.check_status == "fail"
+    assert timeout_result.check_detail == "command timed out"
 
 
 def test_public_docstring_audit_is_part_of_the_sentinel() -> None:
