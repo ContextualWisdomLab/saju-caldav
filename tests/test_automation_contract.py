@@ -1,5 +1,6 @@
 """Contract tests for the scheduled quality loop and governance documents."""
 
+import ast
 import json
 import subprocess
 from pathlib import Path
@@ -36,6 +37,43 @@ def test_hourly_sentinel_has_no_personal_data_contract() -> None:
     assert "birth" not in script.lower()
 
 
+def test_hourly_sentinel_uses_semantic_internal_identifiers() -> None:
+    """Keep organization-owned sentinel names specific to their domain."""
+
+    source = (ROOT / "scripts/hourly_product_loop.py").read_text()
+    tree = ast.parse(source)
+    functions = {
+        node.name: [argument.arg for argument in node.args.args]
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    result_class = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "SentinelCheckResult"
+    )
+    result_fields = {
+        node.target.id
+        for node in result_class.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+
+    assert functions["_run_sentinel_command"] == [
+        "repository_root",
+        "check_name",
+        "command_arguments",
+    ]
+    assert functions["run_quality_sentinel"] == ["repository_root"]
+    assert "_run" not in functions
+    assert "run" not in functions
+    assert result_fields == {
+        "check_name",
+        "check_status",
+        "check_detail",
+        "elapsed_seconds",
+    }
+
+
 def test_hourly_sentinel_redacts_failed_output_and_times_out(monkeypatch, capsys) -> None:
     secret = "synthetic-sensitive-marker"
 
@@ -49,22 +87,27 @@ def test_hourly_sentinel_redacts_failed_output_and_times_out(monkeypatch, capsys
         )
 
     monkeypatch.setattr(hourly_loop.subprocess, "run", failed_run)
-    result = hourly_loop._run(ROOT, "contract", ["uv", "lock", "--check"])
-    assert result.status == "fail"
-    assert result.detail == "command failed (exit 1)"
-    assert secret not in result.detail
+    check_result = hourly_loop._run_sentinel_command(
+        ROOT, "contract", ["uv", "lock", "--check"]
+    )
+    assert check_result.check_status == "fail"
+    assert check_result.check_detail == "command failed (exit 1)"
+    assert secret not in check_result.check_detail
 
     assert hourly_loop.main(["--root", str(ROOT), "--format", "json"]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert secret not in json.dumps(payload, ensure_ascii=False)
+    assert set(payload["checks"][0]) == {"name", "status", "detail", "seconds"}
 
     def timed_out_run(*args, **kwargs):
         raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
 
     monkeypatch.setattr(hourly_loop.subprocess, "run", timed_out_run)
-    timeout_result = hourly_loop._run(ROOT, "timeout", ["uv", "lock", "--check"])
-    assert timeout_result.status == "fail"
-    assert timeout_result.detail == "command timed out"
+    timeout_result = hourly_loop._run_sentinel_command(
+        ROOT, "timeout", ["uv", "lock", "--check"]
+    )
+    assert timeout_result.check_status == "fail"
+    assert timeout_result.check_detail == "command timed out"
 
 
 def test_public_docstring_audit_is_part_of_the_sentinel() -> None:
