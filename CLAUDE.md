@@ -22,9 +22,9 @@
   원격 권한·연결이 확인되지 않으면 fail-closed 한다.
 - 규칙은 허용 목록으로만 역직렬화한다. 임의 코드·식·SQL을 실행하지 않는다.
 - 외부 GitHub Action은 전체 커밋 SHA로 고정하고 checkout 자격 증명을 보존하지
-  않는다. `NVIDIA_NIM_API_KEY` 외의 모델 키나 `COPILOT_GITHUB_TOKEN`을 새 LLM
-  경로에 사용하지 않는다. 기존 reviewer-agent 자격 증명과 라우팅은 변경하지
-  않는다.
+  않는다. 모델 기반 review는 contextual-orchestrator의 `orchestrator/free`만
+  사용한다. 저장소 workflow는 provider·model·group·paid fallback을 선택하지 않고
+  gateway token만 사용하며, 가용한 free capability가 없으면 fail closed 한다.
 - 자동화는 PR·release·배포를 스스로 병합하지 않는다. 현재 head의 모든 Checks,
   리뷰, unresolved thread, ruleset을 다시 확인한 뒤 사람이 승인할 수 있는
   단일 bounded PR만 남긴다.

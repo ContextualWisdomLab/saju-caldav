@@ -18,6 +18,13 @@ search when locating code paths or understanding dependencies, then run
 Use synthetic birth data in tests and public CI. Never commit real profile
 databases, `.env` files, passwords, CalDAV collections, or production logs.
 
+## Agent review routing
+
+Strix uses the zero-cost `orchestrator/free` model through
+ContextualWisdomLab/contextual-orchestrator. Repository workflows must not
+select a provider, concrete model, provider group, or paid fallback. Missing
+free-pool capability fails closed.
+
 
 ## Code-owner review gates — disabled (on hold)
 
