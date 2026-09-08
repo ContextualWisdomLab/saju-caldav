@@ -21,9 +21,12 @@ databases, `.env` files, passwords, CalDAV collections, or production logs.
 ## Agent review routing
 
 Strix uses the zero-cost `orchestrator/free` model through
-ContextualWisdomLab/contextual-orchestrator. Repository workflows must not
-select a provider, concrete model, provider group, or paid fallback. Missing
-free-pool capability fails closed.
+ContextualWisdomLab/contextual-orchestrator. GitHub Actions model-backed review
+workflows must not select a provider, concrete model, provider group, or paid
+fallback. Missing free-pool capability fails closed. The separate non-model
+NIM proposal sentinel may check whether `NVIDIA_NIM_API_KEY` is configured; it
+must not read the value, call a model, publish a verdict, or authorize a direct
+reviewer credential path.
 
 
 ## Code-owner review gates — disabled (on hold)
