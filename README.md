@@ -84,9 +84,9 @@ docker compose up -d --build
 
 신뢰할 수 없는 네트워크에 노출할 때에는 Basic 인증을 평문 HTTP로 쓰지 말고,
 TLS 역방향 프록시 또는 VPN 안에서만 접근해야 합니다. 상세 절차는
-[배포 가이드](docs/DEPLOYMENT.md)에 있습니다.
+[배포 가이드](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/DEPLOYMENT.md)에 있습니다.
 
-Keyverse를 연결할 때에는 [OIDC 연동 경계](docs/security/KEYVERSE.md)의 exact
+Keyverse를 연결할 때에는 [OIDC 연동 경계](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/security/KEYVERSE.md)의 exact
 issuer/audience/JWKS 설정을 먼저 준비합니다. `AUTH_MODE=hybrid`는 이행 모드로,
 같은 OIDC 설정을 요구하면서 검증된 Bearer와 기존 Basic을 함께 허용합니다.
 Bearer 검증이 실패하면 Basic으로 우회하지 않습니다. client convergence와 토큰
@@ -118,20 +118,16 @@ uv run python scripts/acceptance_smoke.py
 
 ## 문서
 
-- [역법 조사와 구현 규칙](docs/research/README.md)
-- [아키텍처와 위협 경계](docs/ARCHITECTURE.md)
-- [ADR-0001: 런타임 잠금과 CI 출처](docs/adr/0001-runtime-lock-and-ci-provenance.md)
-- [ADR 색인과 개인정보 삭제 결정](docs/adr/README.md)
-- [제품 요구사항](docs/product/PRD.md) · [기술 요구사항](docs/technical/TRD.md)
-- [위협 모델](docs/security/THREAT_MODEL.md) · [테스트 전략](docs/testing/TEST_STRATEGY.md)
-- [Keyverse OIDC 연동](docs/security/KEYVERSE.md)
-- [운영성과](docs/operations/OPERABILITY.md) · [요구사항 추적](docs/TRACEABILITY.md)
-- [근거·APA 7 기록](docs/doctoring/README.md)
-- [배포와 CalDAV 연결](docs/DEPLOYMENT.md)
+- [역법 조사와 구현 규칙](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/research/README.md)
+- [아키텍처와 위협 경계](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/ARCHITECTURE.md)
+- [ADR-0001: 런타임 잠금과 CI 출처](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/adr/0001-runtime-lock-and-ci-provenance.md)
+- [ADR 색인과 개인정보 삭제 결정](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/adr/README.md)
+- [위협 모델](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/security/THREAT_MODEL.md) · [테스트 전략](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/testing/TEST_STRATEGY.md)
+- [Keyverse OIDC 연동](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/security/KEYVERSE.md)
+- [운영성과](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/operations/OPERABILITY.md) · [요구사항 추적](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/TRACEABILITY.md)
+- [배포와 CalDAV 연결](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/docs/DEPLOYMENT.md)
 - [Figma 운영자 콘솔](https://www.figma.com/design/P4wdj2MnYwItYch3zdGIWt)
-- [제품 설계](docs/superpowers/specs/2026-07-19-saju-caldav-design.md)
-- [구현 계획](docs/superpowers/plans/2026-07-19-saju-caldav.md)
-- [제3자 소프트웨어 고지](THIRD_PARTY_NOTICES.md)
+- [제3자 소프트웨어 고지](https://github.com/ContextualWisdomLab/saju-caldav/blob/fa72a2c8b988abeb7efacc886cbb3fd8849314af/THIRD_PARTY_NOTICES.md)
 
 ## 개인정보
 
