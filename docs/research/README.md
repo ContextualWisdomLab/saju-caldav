@@ -28,6 +28,7 @@
 4. IETF [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545)와
    [RFC 4791](https://www.rfc-editor.org/rfc/rfc4791).
    각각 iCalendar 이벤트 표현과 CalDAV 컬렉션·리소스 동작의 구현 기준입니다.
+   프로토콜 결정은 [ADR 색인](../adr/README.md)에 기록합니다.
 5. 박한얼·민병희·안영숙, “한국 음력의 운용과 계산법 연구,”
    *천문학논총* 32(3), 2017,
    [DOI 10.5303/PKAS.2017.32.3.407](https://doi.org/10.5303/PKAS.2017.32.3.407),

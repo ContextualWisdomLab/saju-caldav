@@ -66,6 +66,9 @@ flowchart LR
   클라이언트 표시용이며 Radicale의 인증·`owner_only` 접근 제어를 바꾸지 않습니다.
   제목은 사용자가 붙인 중립적 캘린더 이름이고 설명은 일반 문장만 포함합니다.
   명식, 규칙, 천간·지지, 오행 또는 `X-SAJU-*` 속성은 CalDAV로 보내지 않습니다.
+  iCalendar 방출과 CalDAV 쓰기 표면의 프로토콜 결정은
+  [ADR-0006](adr/0006-icalendar-vevent-emission.md)과
+  [ADR-0007](adr/0007-caldav-write-surface.md)에 기록합니다.
 - 컨테이너는 비루트 UID, 읽기 전용 루트 파일시스템, 전체 Linux capability
   제거, `no-new-privileges`로 실행됩니다.
 - 런타임 의존성은 `pyproject.toml`에 정확한 버전을 선언하고 `uv.lock`으로
