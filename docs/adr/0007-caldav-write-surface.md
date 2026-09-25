@@ -13,8 +13,9 @@ Accepted — 2026-08-25
 
 ## 결정
 
-1. 애플리케이션이 CalDAV 서버에 수행하는 쓰기는 `MKCALENDAR`와 결정적
-   `PUT`뿐이다.
+1. 동기화 작업이 수행하는 CalDAV 쓰기는 `MKCALENDAR`와 결정적
+   `PUT`이다. 캘린더 삭제의 `DELETE` 순서는
+   [ADR-0002](0002-profile-and-calendar-erasure.md)를 따른다.
 2. 이벤트 UID는 캘린더 ID, 시작·종료 시각, 포맷 버전의 SHA-256에서 만들며,
    같은 범위를 다시 동기화하면 같은 리소스 경로를 `PUT`으로 덮어쓴다.
 
@@ -27,9 +28,9 @@ Accepted — 2026-08-25
 삭제한다. 컬렉션 삭제의 원격 우선 순서는
 [ADR-0002](0002-profile-and-calendar-erasure.md)다.
 
-이 기록은 `MKCALENDAR`와 결정적 `PUT`만 수용한다. subject별 CalDAV
-계정·ACL 매핑은 [ARCHITECTURE.md](../ARCHITECTURE.md)가 별도 설계와 교차
-범위 테스트 뒤로 남겨 두었으므로 이 ADR의 수용 범위가 아니다.
+이 기록은 동기화 작업의 `MKCALENDAR`와 결정적 `PUT`만 수용한다. subject별
+CalDAV 계정·ACL 매핑은 [ARCHITECTURE.md](../ARCHITECTURE.md)가 별도 설계와
+교차 범위 테스트 뒤로 남겨 두었으므로 이 ADR의 수용 범위가 아니다.
 
 ## 검증
 
