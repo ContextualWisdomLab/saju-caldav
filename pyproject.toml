@@ -3,6 +3,8 @@ name = "saju-caldav"
 version = "0.2.0"
 description = "Custom Four Pillars calendars published over CalDAV"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
   "bcrypt==5.0.0",
@@ -10,7 +12,7 @@ dependencies = [
   "httpx==0.28.1",
   "icalendar==7.2.2",
   "korean-lunar-calendar==0.4.0",
-  "pyjwt==2.13.0",
+  "pyjwt==2.15.1",
   "cryptography==50.0.0",
   "radicale==3.7.7",
   "tzdata==2026.3",

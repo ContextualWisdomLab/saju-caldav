@@ -251,7 +251,7 @@ def test_oidc_verifier_rejects_time_window_and_token_shape(
             verifier.verify(token)
 
     hmac_token = jwt.encode(
-        {"iss": ISSUER, "sub": "user-1"}, "not-a-signing-key", algorithm="HS256"
+        {"iss": ISSUER, "sub": "user-1"}, "not-an-rsa-signing-key-with-32-bytes", algorithm="HS256"
     )
     with pytest.raises(OidcVerificationError):
         verifier.verify(hmac_token)
