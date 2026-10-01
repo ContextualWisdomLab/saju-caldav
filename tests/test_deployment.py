@@ -1,6 +1,9 @@
 import configparser
+import email
 import json
+import subprocess
 import tomllib
+import zipfile
 from pathlib import Path
 
 import bcrypt
@@ -125,3 +128,30 @@ def test_korean_lunar_calendar_notice_is_complete() -> None:
     assert "licenses/korean-lunar-calendar-MIT.txt" in notice
     assert "Copyright (c) 2018-2026 Jinil Lee" in license_text
     assert "Permission is hereby granted" in license_text
+
+
+def test_built_wheel_carries_apache_license_evidence(tmp_path: Path) -> None:
+    """Bind source license authority to the published wheel metadata and bytes."""
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert project.get("license") == "Apache-2.0"
+    assert project.get("license-files") == ["LICENSE"]
+
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    wheel_path, = tmp_path.glob("*.whl")
+    with zipfile.ZipFile(wheel_path) as wheel:
+        metadata_path, = [
+            name for name in wheel.namelist() if name.endswith(".dist-info/METADATA")
+        ]
+        metadata = email.message_from_bytes(wheel.read(metadata_path))
+        assert metadata.get_all("License-Expression") == ["Apache-2.0"]
+        assert metadata.get_all("License-File") == ["LICENSE"]
+        license_path = metadata_path.removesuffix("METADATA") + "licenses/LICENSE"
+        assert wheel.read(license_path) == (ROOT / "LICENSE").read_bytes()
