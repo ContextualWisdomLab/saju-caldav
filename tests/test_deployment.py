@@ -141,7 +141,7 @@ def test_built_wheel_carries_apache_license_evidence(tmp_path: Path) -> None:
         ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],
         cwd=ROOT,
         check=True,
-        capture_output=True,
+        capture_output=False,
         text=True,
         timeout=120,
     )
